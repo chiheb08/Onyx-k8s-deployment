@@ -11,9 +11,11 @@
 | If you want to... | Read this file |
 |-------------------|----------------|
 | 🚀 **Deploy now (fastest)** | `QUICK-START.md` |
+| 🐛 **Fix PVC/storage issues** | `QUICK-FIX-PVC.md` or `TROUBLESHOOTING-PVC.md` |
 | 📖 **Understand everything first** | `MINIMAL-DEPLOYMENT-GUIDE.md` |
 | 🏗️ **See architecture diagrams** | `ARCHITECTURE.md` |
 | 🔧 **Configure specific services** | `README.md` |
+| 🌐 **Understand DNS naming** | `DNS-NAMING-EXPLAINED.md` |
 
 ---
 
