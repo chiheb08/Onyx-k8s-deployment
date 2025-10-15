@@ -102,7 +102,7 @@ Once deployed, services are accessible within the cluster:
 
 ## 🔧 Configuration
 
-### Important: Namespace Configuration
+### Important: Namespace Configuration & DNS Naming
 
 **✅ No hardcoded namespaces in YAML files!**
 
@@ -135,6 +135,60 @@ oc project onyx-production
 ./deploy.sh
 # → All resources created in onyx-production
 ```
+
+---
+
+### 🌐 Kubernetes DNS Naming Explained
+
+**You might see references to `web-server.onyx-infra.svc.cluster.local` in documentation.**
+
+**Understanding the format:**
+```
+service-name.namespace.svc.cluster.local:port
+
+Example:
+web-server.onyx-infra.svc.cluster.local:3000
+│         │          │   │            │
+│         │          │   │            └─ Port number
+│         │          │   └─ Kubernetes domain (always same)
+│         │          └─ "svc" means Service
+│         └─ Namespace name (changes per deployment)
+└─ Service name
+```
+
+**Important: Our YAML files use SHORT names!**
+
+```yaml
+# In 05-configmap.yaml:
+POSTGRES_HOST: "postgresql"              # Not postgresql.onyx-infra...
+VESPA_HOST: "vespa-0.vespa-service"      # Not vespa-0.vespa-service.onyx-infra...
+
+# In 09-nginx.yaml:
+upstream web_server {
+    server web-server:3000;              # Not web-server.onyx-infra...
+}
+```
+
+**Why this works:**
+
+When you deploy to namespace `my-custom-namespace`:
+- Service `postgresql` is created in `my-custom-namespace`
+- API Server looks up `postgresql`
+- Kubernetes automatically resolves to: `postgresql.my-custom-namespace.svc.cluster.local`
+- Connection works! ✅
+
+**You DON'T need to change anything!**
+
+The namespace is automatically added by Kubernetes DNS based on where you deploy.
+
+**For cross-namespace access (like external vLLM):**
+```yaml
+# If vLLM is in namespace "ai-services":
+VLLM_URL: "http://vllm-service.ai-services:8001"
+                           └─ Must specify namespace
+```
+
+**See `DNS-NAMING-EXPLAINED.md` for complete details.**
 
 ---
 
