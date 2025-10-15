@@ -1,0 +1,113 @@
+# ============================================================================
+# Vespa Deployment for Onyx - MINIMAL VERSION
+# ============================================================================
+# Simplified Vespa deployment using Deployment instead of StatefulSet
+# Use this for minimal deployment with 1 replica only
+# Image: vespaengine/vespa:8.526.15
+# Storage: 30Gi persistent volume
+# ============================================================================
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vespa-service
+  labels:
+    app: vespa
+spec:
+  type: ClusterIP
+  ports:
+    - name: config
+      port: 19071
+      targetPort: 19071
+      protocol: TCP
+    - name: query
+      port: 8081
+      targetPort: 8081
+      protocol: TCP
+  selector:
+    app: vespa
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vespa-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 30Gi
+  storageClassName: "nfs-example"
+  volumeMode: "Filesystem"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vespa
+  labels:
+    app: vespa
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Important: prevents two pods writing to same PVC
+  selector:
+    matchLabels:
+      app: vespa
+  template:
+    metadata:
+      labels:
+        app: vespa
+    spec:
+      securityContext:
+        fsGroup: 1000  # Vespa user group
+      containers:
+        - name: vespa
+          image: vespaengine/vespa:8.526.15
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: config
+              containerPort: 19071
+              protocol: TCP
+            - name: query
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: VESPA_SKIP_UPGRADE_CHECK
+              value: "true"
+          volumeMounts:
+            - name: vespa-storage
+              mountPath: /opt/vespa/var
+          resources:
+            requests:
+              cpu: 1000m      # Reduced for minimal deployment
+              memory: 2Gi     # Reduced for minimal deployment
+            limits:
+              cpu: 4000m      # Reduced for minimal deployment
+              memory: 8Gi     # Reduced for minimal deployment
+          livenessProbe:
+            httpGet:
+              path: /state/v1/health
+              port: 19071
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /state/v1/health
+              port: 19071
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          securityContext:
+            privileged: true  # Required for Vespa
+            runAsUser: 0      # Run as root (required by Vespa)
+      volumes:
+        - name: vespa-storage
+          persistentVolumeClaim:
+            claimName: vespa-pvc
+      restartPolicy: Always
