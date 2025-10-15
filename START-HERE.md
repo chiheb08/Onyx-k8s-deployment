@@ -11,7 +11,8 @@
 | If you want to... | Read this file |
 |-------------------|----------------|
 | 🚀 **Deploy now (fastest)** | `QUICK-START.md` |
-| 🐛 **Fix PVC/storage issues** | `QUICK-FIX-PVC.md` or `TROUBLESHOOTING-PVC.md` |
+| 🐛 **Fix deployment issues** | `QUICK-FIX-PVC.md` (PVC + SCC issues) |
+| 🔒 **Fix OpenShift security issues** | `TROUBLESHOOTING-SCC.md` |
 | 📖 **Understand everything first** | `MINIMAL-DEPLOYMENT-GUIDE.md` |
 | 🏗️ **See architecture diagrams** | `ARCHITECTURE.md` |
 | 🔧 **Configure specific services** | `README.md` |

@@ -1,6 +1,11 @@
-# Quick Fix for PVC Issues
+# Quick Fix for Common Kubernetes Issues
 
-**Fast solution to get Onyx running when you have PersistentVolumeClaim issues.**
+**Fast solutions to get Onyx running when you have deployment issues.**
+
+## 🐛 Issue Types
+
+- **PVC Issues** - Storage problems
+- **SCC Issues** - OpenShift security permissions (NEW!)
 
 ---
 
@@ -155,5 +160,40 @@ oc get pvc -w  # Wait for Bound
 
 ---
 
-**For detailed troubleshooting, see `TROUBLESHOOTING-PVC.md`**
+## 🔒 Issue 2: Security Context Constraint (SCC) Error
+
+**Error:** `Forbidden: not usable by user or serviceaccount` for `hostmount-anyuid`, `privileged`, etc.
+
+**This is OpenShift security blocking Vespa from using required permissions.**
+
+### Quick Fix
+
+```bash
+# Grant anyuid SCC to default service account
+oc adm policy add-scc-to-user anyuid -z default
+
+# Restart Vespa
+kubectl delete statefulset vespa
+kubectl apply -f 03-vespa.yaml
+
+# Check if working
+kubectl get pods -l app=vespa
+```
+
+### If Still Failing
+
+```bash
+# Try more permissive SCC
+oc adm policy add-scc-to-user hostmount-anyuid -z default
+
+# Restart again
+kubectl delete statefulset vespa
+kubectl apply -f 03-vespa.yaml
+```
+
+---
+
+**For detailed troubleshooting:**
+- PVC issues: `TROUBLESHOOTING-PVC.md`
+- SCC issues: `TROUBLESHOOTING-SCC.md`
 
