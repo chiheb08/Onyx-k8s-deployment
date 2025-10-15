@@ -1,0 +1,42 @@
+# ============================================================================
+# ConfigMap for Onyx Environment Variables
+# ============================================================================
+# Centralized configuration for all Onyx services
+# Based on Helm chart configmap.yaml
+# ============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: onyx-config
+data:
+  # Service Endpoints (uses short names - works within same namespace)
+  POSTGRES_HOST: "postgresql"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "postgres"
+  
+  VESPA_HOST: "vespa-0.vespa-service"
+  
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  
+  MODEL_SERVER_HOST: "inference-model-server"
+  MODEL_SERVER_PORT: "9000"
+  
+  # Internal URLs
+  INTERNAL_URL: "http://api-server:8080"
+  
+  # Auth Settings
+  AUTH_TYPE: "basic"
+  SESSION_EXPIRE_TIME_SECONDS: "86400"
+  
+  # Web Domain
+  WEB_DOMAIN: "http://localhost:3000"
+  DOMAIN: "localhost"
+  
+  # Disable features not needed for minimal deployment
+  DISABLE_GENERATIVE_AI: "false"
+  
+  # Timeouts
+  QA_TIMEOUT: "60"
+
