@@ -63,8 +63,8 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  # storageClassName: ""  # CHANGE THIS LINE:
-  storageClassName: "gp2"  # Replace with YOUR StorageClass name
+  storageClassName: "nfs-example"  # Your StorageClass
+  volumeMode: "Filesystem"
 ```
 
 **Edit `03-vespa.yaml`:**
@@ -77,8 +77,8 @@ spec:
   resources:
     requests:
       storage: 30Gi
-  # storageClassName: ""  # CHANGE THIS LINE:
-  storageClassName: "gp2"  # Same StorageClass
+  storageClassName: "nfs-example"  # Same StorageClass
+  volumeMode: "Filesystem"
 ```
 
 ### Step 3: Apply

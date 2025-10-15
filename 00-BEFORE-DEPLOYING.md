@@ -42,48 +42,27 @@ oc project
 
 **All resources will be created in your current namespace!**
 
-### 3. Configure Storage Class (IMPORTANT!)
+### 3. Storage Configuration ✅
 
-**This is usually required for OpenShift!**
+**Storage is pre-configured for your environment:**
 
+- **Storage Class:** `nfs-example`
+- **Volume Mode:** `Filesystem`
+- **PostgreSQL:** 10Gi persistent storage
+- **Vespa:** 30Gi persistent storage
+
+**No changes needed** - the YAML files are already configured with your storage settings.
+
+**If you need to verify your storage class exists:**
 ```bash
-# List available storage classes
+# Check available storage classes
 kubectl get storageclass
 
 # OR in OpenShift
 oc get storageclass
 
-# Example output:
-# NAME                 PROVISIONER              AGE
-# gp2 (default)        kubernetes.io/aws-ebs    30d
-# thin                 kubernetes.io/vsphere    30d
+# Should show: nfs-example
 ```
-
-**Update both PostgreSQL and Vespa to use your StorageClass:**
-
-**In `02-postgresql.yaml` (around line 30):**
-```yaml
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
-  storageClassName: "gp2"  # ← Change to YOUR StorageClass name
-```
-
-**In `03-vespa.yaml` (around line 95):**
-```yaml
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 30Gi
-  storageClassName: "gp2"  # ← Same StorageClass
-```
-
-**⚠️ Common Issue:** If you skip this, PVCs will stay in "Pending" state and pods won't start!
 
 **For testing only:** Use `02-postgresql-emptydir.yaml` (no persistence, data lost on restart)
 

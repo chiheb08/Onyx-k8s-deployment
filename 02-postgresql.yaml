@@ -28,7 +28,8 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  # storageClassName: ""  # Uncomment and set if you have a specific storage class
+  storageClassName: "nfs-example"
+  volumeMode: "Filesystem"
 
 ---
 apiVersion: v1

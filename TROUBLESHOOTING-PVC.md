@@ -320,30 +320,22 @@ oc get storageclass
 # - glusterfs-storage
 ```
 
-**Update 02-postgresql.yaml:**
+**YAML files are pre-configured with your storage:**
 
 ```yaml
+# 02-postgresql.yaml and 03-vespa.yaml already have:
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
-  storageClassName: "gp2"  # Use your OpenShift storage class
+      storage: 10Gi  # PostgreSQL
+      # storage: 30Gi  # Vespa
+  storageClassName: "nfs-example"
+  volumeMode: "Filesystem"
 ```
 
-**Same for Vespa (03-vespa.yaml):**
-
-```yaml
-# In volumeClaimTemplates section:
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 30Gi
-  storageClassName: "gp2"  # Same storage class
-```
+**No changes needed - ready to deploy!**
 
 ---
 
