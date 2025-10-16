@@ -5,6 +5,10 @@
 # Image: onyxdotapp/onyx-model-server:nightly-20241004
 # Port: 9000 (same as inference, but different container)
 # Purpose: Bulk document embedding for background workers
+# 
+# DEPLOYMENT OPTIONS:
+# 1. With existing PV (recommended for air-gapped): Use pvc-shared-models.yaml
+# 2. With internet access: Use emptyDir (comment out PVC, uncomment emptyDir)
 # ============================================================================
 
 ---
@@ -50,8 +54,21 @@ spec:
               containerPort: 9000
               protocol: TCP
           env:
+            # ================================================================
+            # CRITICAL: INDEXING_ONLY=True makes this the indexing server
+            # ================================================================
             - name: INDEXING_ONLY
               value: "True"
+            # ================================================================
+            # OFFLINE MODE (for air-gapped/restricted environments)
+            # Uncomment these if using existing PV with pre-loaded models
+            # ================================================================
+            - name: HF_HOME
+              value: "/app/.cache/huggingface"
+            - name: HF_HUB_OFFLINE
+              value: "1"  # Force offline - don't download from Hugging Face
+            - name: TRANSFORMERS_OFFLINE
+              value: "1"  # Force transformers to use cached models only
             - name: MODEL_SERVER_PORT
               value: "9000"
           resources:
@@ -80,7 +97,23 @@ spec:
           volumeMounts:
             - name: indexing-model-cache
               mountPath: /app/.cache/huggingface
+              readOnly: true  # Read-only since models are pre-loaded
       volumes:
+        # ================================================================
+        # OPTION 1: Use existing PV with pre-loaded models (RECOMMENDED)
+        # For air-gapped/restricted environments
+        # Shares the SAME PVC as inference server (if ReadWriteMany)
+        # Requires: pvc-shared-models.yaml to be deployed first
+        # ================================================================
         - name: indexing-model-cache
-          emptyDir: {}  # Model cache (can be made persistent if needed)
+          persistentVolumeClaim:
+            claimName: huggingface-models-pvc
+        
+        # ================================================================
+        # OPTION 2: Use emptyDir (for environments with internet access)
+        # Uncomment below and comment out PVC above if you have internet
+        # Models will download on first start (~2-3GB, 5-10 minutes)
+        # ================================================================
+        # - name: indexing-model-cache
+        #   emptyDir: {}
       restartPolicy: Always

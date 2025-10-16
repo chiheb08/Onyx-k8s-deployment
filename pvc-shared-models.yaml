@@ -1,0 +1,50 @@
+# ============================================================================
+# PersistentVolumeClaim for Hugging Face Models (Shared)
+# ============================================================================
+# This PVC binds to an existing PV that already contains pre-loaded models.
+# Used for air-gapped/restricted OpenShift environments without internet.
+# 
+# REQUIREMENTS:
+# - Ask your colleague for the StorageClass name
+# - Confirm if it supports ReadWriteMany (so both servers can share)
+# - Confirm the PV size
+# 
+# CONFIGURATION:
+# - Update storageClassName with your cluster's storage class
+# - Update storage size to match your PV
+# - If ReadWriteMany not supported, use pvc-separate-models.yaml instead
+# ============================================================================
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: huggingface-models-pvc
+  labels:
+    app: onyx-model-servers
+    component: model-cache
+spec:
+  # IMPORTANT: ReadWriteMany allows both model servers to share the same PVC
+  # If your storage doesn't support ReadWriteMany, use ReadWriteOnce
+  # and create separate PVCs (see pvc-separate-models.yaml)
+  accessModes:
+    - ReadWriteMany
+  
+  # REPLACE WITH YOUR STORAGE CLASS NAME
+  # Examples: "nfs-example", "nfs-models", "ceph-rbd", "glusterfs"
+  # Ask your colleague for the exact name
+  storageClassName: "nfs-example"
+  
+  # Optional: If you want to bind to a specific existing PV by name
+  # Uncomment and replace with your PV name:
+  # volumeName: "huggingface-models-pv"
+  
+  volumeMode: Filesystem
+  
+  resources:
+    requests:
+      # REPLACE WITH YOUR PV SIZE
+      # Should match or be less than the existing PV size
+      # Models require ~5-6GB, request 10Gi for safety
+      storage: 10Gi
+

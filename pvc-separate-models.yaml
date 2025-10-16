@@ -1,0 +1,52 @@
+# ============================================================================
+# PersistentVolumeClaims for Hugging Face Models (Separate)
+# ============================================================================
+# Use this file if your storage class only supports ReadWriteOnce.
+# Creates two separate PVCs - one for each model server.
+# 
+# NOTE: With ReadWriteOnce, models need to be copied to both PVCs separately.
+# If your storage supports ReadWriteMany, use pvc-shared-models.yaml instead.
+# ============================================================================
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: inference-model-cache-pvc
+  labels:
+    app: inference-model-server
+    component: model-cache
+spec:
+  accessModes:
+    - ReadWriteOnce  # Only the inference server pod can mount this
+  
+  # REPLACE WITH YOUR STORAGE CLASS NAME
+  storageClassName: "nfs-example"
+  
+  volumeMode: Filesystem
+  
+  resources:
+    requests:
+      storage: 5Gi  # Half the size since models will be duplicated
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: indexing-model-cache-pvc
+  labels:
+    app: indexing-model-server
+    component: model-cache
+spec:
+  accessModes:
+    - ReadWriteOnce  # Only the indexing server pod can mount this
+  
+  # REPLACE WITH YOUR STORAGE CLASS NAME
+  storageClassName: "nfs-example"
+  
+  volumeMode: Filesystem
+  
+  resources:
+    requests:
+      storage: 5Gi  # Half the size since models will be duplicated
+
