@@ -1,0 +1,86 @@
+# ============================================================================
+# Indexing Model Server for Onyx
+# ============================================================================
+# Second model server dedicated to document indexing and background processing
+# Image: onyxdotapp/onyx-model-server:nightly-20241004
+# Port: 9000 (same as inference, but different container)
+# Purpose: Bulk document embedding for background workers
+# ============================================================================
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: indexing-model-server
+  labels:
+    app: indexing-model-server
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+  selector:
+    app: indexing-model-server
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexing-model-server
+  labels:
+    app: indexing-model-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: indexing-model-server
+  template:
+    metadata:
+      labels:
+        app: indexing-model-server
+    spec:
+      containers:
+        - name: indexing-model-server
+          image: onyxdotapp/onyx-model-server:nightly-20241004
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+          env:
+            - name: INDEXING_ONLY
+              value: "True"
+            - name: MODEL_SERVER_PORT
+              value: "9000"
+          resources:
+            requests:
+              cpu: 1000m      # Higher CPU for bulk processing
+              memory: 2Gi     # Same memory as inference server
+            limits:
+              cpu: 4000m      # Higher limits for heavy indexing
+              memory: 8Gi     # Same memory as inference server
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          volumeMounts:
+            - name: indexing-model-cache
+              mountPath: /app/.cache/huggingface
+      volumes:
+        - name: indexing-model-cache
+          emptyDir: {}  # Model cache (can be made persistent if needed)
+      restartPolicy: Always
