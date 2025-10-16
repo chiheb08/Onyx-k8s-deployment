@@ -1,0 +1,38 @@
+# ============================================================================
+# PersistentVolumeClaim for Hugging Face Models
+# ============================================================================
+# This PVC binds to the PV created in 01-pv-huggingface-models.yaml
+# Pods will reference this PVC to access the NFS-mounted models
+# 
+# This file should work as-is (no changes needed)
+# unless you changed the PV name
+# ============================================================================
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: huggingface-models-pvc
+  labels:
+    app: onyx-model-servers
+    component: model-cache
+spec:
+  # Access modes - must match the PV
+  accessModes:
+    - ReadWriteMany
+  
+  # StorageClassName - must match the PV (empty = static binding)
+  storageClassName: ""
+  
+  # Storage request - must be ≤ PV capacity
+  resources:
+    requests:
+      storage: 10Gi
+  
+  # CRITICAL: Explicitly bind to the PV by name
+  # This ensures it binds to YOUR PV, not some other PV
+  volumeName: huggingface-models-pv
+  
+  # Volume mode - must be Filesystem (not Block)
+  volumeMode: Filesystem
+

@@ -1,0 +1,76 @@
+# ============================================================================
+# PersistentVolume for Hugging Face Models (NFS)
+# ============================================================================
+# This PV points to your infrastructure team's NFS server with pre-loaded models
+# 
+# IMPORTANT: Update these fields before deploying:
+# - spec.nfs.server: NFS server IP (different for Prod and Dev)
+# - spec.nfs.path: NFS export path (ask your team)
+# - spec.mountOptions: NFS version (3 or 4.1)
+# 
+# Your Environment:
+# - Production NFS: Different IP, 800Gi total capacity
+# - Dev NFS: Different IP, 800Gi total capacity
+# - Both have pre-loaded Hugging Face models (~5-6GB used)
+# ============================================================================
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: huggingface-models-pv
+  labels:
+    type: nfs
+    app: onyx-model-servers
+    environment: prod  # Change to "dev" for Dev cluster
+spec:
+  # Storage capacity
+  # NOTE: This can be less than the NFS server's total (800Gi)
+  # We only need ~10Gi since models are ~5-6GB
+  capacity:
+    storage: 10Gi
+  
+  # Access modes
+  # ReadWriteMany = multiple pods can mount simultaneously (required!)
+  accessModes:
+    - ReadWriteMany
+  
+  # Reclaim policy - what happens when PVC is deleted
+  # Retain = keep the data (RECOMMENDED for pre-loaded models)
+  # Delete = dangerous, will delete models!
+  persistentVolumeReclaimPolicy: Retain
+  
+  # StorageClassName
+  # Empty string = manual/static provisioning (no auto-binding)
+  storageClassName: ""
+  
+  # NFS mount options
+  # Adjust based on your NFS server version and performance needs
+  mountOptions:
+    - hard           # Keep trying if NFS server is down
+    - nfsvers=4.1    # NFS version: 4.1 (change to "3" if needed)
+    - timeo=600      # Timeout: 60 seconds
+    - retrans=2      # Retry 2 times before giving up
+  
+  # NFS configuration
+  nfs:
+    # ================================================================
+    # CRITICAL: Replace with YOUR NFS server IP address
+    # ================================================================
+    # Production example: 10.50.100.10
+    # Dev example: 10.60.100.10
+    # Ask your infrastructure team for the correct IP
+    # ================================================================
+    server: 10.0.0.100  # ← CHANGE THIS!
+    
+    # ================================================================
+    # CRITICAL: Replace with YOUR NFS export path
+    # ================================================================
+    # Ask your infrastructure team for the exact path
+    # Common examples:
+    # - /exports/huggingface-models
+    # - /mnt/nfs/ml-models
+    # - /data/models/huggingface
+    # ================================================================
+    path: "/exports/huggingface-models"  # ← CHANGE THIS!
+
