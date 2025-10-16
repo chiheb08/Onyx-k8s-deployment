@@ -14,11 +14,11 @@ metadata:
 data:
   default.conf: |
     upstream web_server {
-        server web-server:3000;
+        server web-server.${NAMESPACE}.svc.cluster.local:3000;
     }
 
     upstream api_server {
-        server api-server:8080;
+        server api-server.${NAMESPACE}.svc.cluster.local:8080;
     }
 
     server {
@@ -136,20 +136,25 @@ spec:
           args:
             - |
               echo "Waiting for web-server..."
-              until nslookup web-server; do
+              until nslookup web-server.${NAMESPACE}.svc.cluster.local; do
                 echo "web-server not ready, waiting..."
                 sleep 2
               done
               echo "web-server is ready!"
               
               echo "Waiting for api-server..."
-              until nslookup api-server; do
+              until nslookup api-server.${NAMESPACE}.svc.cluster.local; do
                 echo "api-server not ready, waiting..."
                 sleep 2
               done
               echo "api-server is ready!"
               
               echo "All services are ready!"
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           resources:
             requests:
               cpu: 50m
@@ -165,6 +170,11 @@ spec:
             - name: http
               containerPort: 80
               protocol: TCP
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           volumeMounts:
             - name: nginx-config
               mountPath: /etc/nginx/conf.d/default.conf
