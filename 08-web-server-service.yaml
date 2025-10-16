@@ -1,0 +1,23 @@
+# ============================================================================
+# Web Server Service for Onyx
+# ============================================================================
+# Service definition for the web-server deployment
+# This service is required for NGINX to resolve web-server:3000
+# ============================================================================
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-server
+  labels:
+    app: web-server
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+  selector:
+    app: web-server
