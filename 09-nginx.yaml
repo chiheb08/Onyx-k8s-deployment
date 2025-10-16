@@ -129,6 +129,27 @@ spec:
       labels:
         app: nginx
     spec:
+      initContainers:
+        - name: wait-for-services
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for web-server..."
+              until nslookup web-server; do
+                echo "web-server not ready, waiting..."
+                sleep 2
+              done
+              echo "web-server is ready!"
+              
+              echo "Waiting for api-server..."
+              until nslookup api-server; do
+                echo "api-server not ready, waiting..."
+                sleep 2
+              done
+              echo "api-server is ready!"
+              
+              echo "All services are ready!"
       containers:
         - name: nginx
           image: nginx:1.23.4-alpine
