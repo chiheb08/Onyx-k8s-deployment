@@ -1,339 +1,437 @@
-# Onyx Kubernetes Infrastructure - Minimal Deployment
+# Onyx Kubernetes Infrastructure
 
-Minimal Kubernetes deployment for Onyx on OpenShift, specifically designed for **air-gapped/restricted environments** with existing PersistentVolume for model storage.
+Complete Kubernetes/OpenShift deployment manifests and documentation for Onyx AI platform.
+
+---
+
+## 📁 Repository Structure
+
+```
+onyx-k8s-infrastructure/
+├── manifests/              # Kubernetes YAML manifests
+│   ├── 02-postgresql.yaml
+│   ├── 03-vespa.yaml
+│   ├── 04-redis.yaml
+│   ├── 05-configmap.yaml
+│   ├── 06-inference-model-server.yaml
+│   ├── 06-indexing-model-server.yaml
+│   ├── 07-api-server.yaml
+│   ├── 07-api-server-service.yaml
+│   ├── 08-web-server.yaml
+│   ├── 08-web-server-service.yaml
+│   ├── 09-nginx.yaml
+│   ├── 09-nginx-simple.yaml
+│   └── 09-nginx-hardcoded-namespace.yaml
+│
+├── documentation/          # Architecture & technical docs
+│   ├── ARCHITECTURE-FOR-JUNIOR-ENGINEERS.md
+│   ├── KUBERNETES-NETWORKING-COMPLETE-GUIDE.md
+│   ├── MODEL-SERVERS-EXPLANATION.md
+│   ├── MODEL-SERVERS-YAML-EXPLAINED.md
+│   ├── HUGGING-FACE-MODELS-FLOW.md
+│   ├── END-TO-END-USER-FLOW.md
+│   └── AIRGAPPED-MODEL-SERVERS-GUIDE.md
+│
+├── guides/                 # Getting started guides
+│   ├── 00-BEFORE-DEPLOYING.md
+│   ├── START-HERE.md
+│   ├── QUICK-START.md
+│   └── MINIMAL-DEPLOYMENT-GUIDE.md
+│
+├── troubleshooting/        # Issue resolution guides
+│   ├── STEP-BY-STEP-FIX.md
+│   ├── NGINX-DNS-TROUBLESHOOTING-GUIDE.md
+│   ├── FULL-DNS-RESOLUTION-FIX.md
+│   ├── OPENSHIFT-RESOURCE-QUOTA-FIX.md
+│   ├── OPENSHIFT-DNS-RESOLUTION-FIX.md
+│   ├── MISSING-SERVICES-SOLUTION.md
+│   ├── NGINX-UPSTREAM-ERROR-ANALYSIS.md
+│   ├── NGINX-CONFIGMAP-ISSUE-ANALYSIS.md
+│   └── WEBSERVER-DEPLOYMENT-ANALYSIS.md
+│
+├── scripts/                # Utility scripts
+│   ├── deploy.sh
+│   ├── diagnose.sh
+│   └── quick-fix.sh
+│
+├── storage-setup/          # Persistent storage configs
+│   ├── 01-pv-huggingface-models.yaml
+│   ├── 02-pvc-huggingface-models.yaml
+│   ├── PV-PVC-SETUP-GUIDE.md
+│   ├── SIMPLE-PV-EXPLANATION.md
+│   └── USING-EXISTING-PV-FOR-MODELS.md
+│
+└── docs/                   # Additional reference docs
+    ├── reference/
+    └── troubleshooting/
+```
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### 1. Before You Begin
 
-1. **OpenShift cluster** with namespace created (e.g., `onyx-infra`)
-2. **Existing PersistentVolume (PV)** with pre-loaded Hugging Face models
-3. **Storage class** that supports `ReadWriteMany` (preferred) or `ReadWriteOnce`
-4. **No internet access** required in pods (air-gapped ready)
+Read these guides in order:
 
-### Deployment Steps
+1. **[START-HERE.md](guides/START-HERE.md)** - Overview and prerequisites
+2. **[00-BEFORE-DEPLOYING.md](guides/00-BEFORE-DEPLOYING.md)** - Pre-deployment checklist
+3. **[QUICK-START.md](guides/QUICK-START.md)** - Fast deployment guide
+
+### 2. Deploy Onyx
 
 ```bash
-# 1. Get PV details from your colleague
-#    - StorageClass name
-#    - Access mode (ReadWriteMany or ReadWriteOnce)
-#    - PV size
+# Deploy infrastructure services
+oc apply -f manifests/02-postgresql.yaml
+oc apply -f manifests/03-vespa.yaml
+oc apply -f manifests/04-redis.yaml
 
-# 2. Update pvc-shared-models.yaml with your StorageClass
-#    Edit: storageClassName: "your-storage-class-name"
+# Deploy model servers
+oc apply -f manifests/06-inference-model-server.yaml
+oc apply -f manifests/06-indexing-model-server.yaml
 
-# 3. Deploy in order
-oc apply -f pvc-shared-models.yaml              # Model cache PVC
-oc apply -f 02-postgresql.yaml                  # Database
-oc apply -f 03-vespa.yaml                       # Vector search
-oc apply -f 04-redis.yaml                       # Cache
-oc apply -f 05-configmap.yaml                   # Configuration
-oc apply -f 06-inference-model-server.yaml      # Inference model server
-oc apply -f 06-indexing-model-server.yaml       # Indexing model server
-oc apply -f 07-api-server.yaml                  # API server
-oc apply -f 08-web-server.yaml                  # Web UI
-oc apply -f 09-nginx.yaml                       # Reverse proxy
+# Deploy application services
+oc apply -f manifests/07-api-server-service.yaml
+oc apply -f manifests/07-api-server.yaml
+oc apply -f manifests/08-web-server-service.yaml
+oc apply -f manifests/08-web-server.yaml
 
-# 4. Verify deployment
+# Deploy NGINX
+oc apply -f manifests/09-nginx-simple.yaml
+
+# Create route for external access
+oc expose service nginx --hostname=onyx.company.com
+```
+
+### 3. Verify Deployment
+
+```bash
+# Check all pods are running
 oc get pods
-oc logs deployment/inference-model-server | grep "loaded model"
+
+# Check all services
+oc get services
+
+# Check route
+oc get route
+
+# Access Onyx
+curl https://onyx.company.com
 ```
 
 ---
 
-## 📁 Essential Files
+## 📚 Documentation
 
-### Deployment YAMLs (Deploy in Order)
+### Architecture Guides
 
-1. **`pvc-shared-models.yaml`** - PVC for Hugging Face models (shared by both model servers)
-2. **`02-postgresql.yaml`** - PostgreSQL database with persistent storage
-3. **`03-vespa.yaml`** - Vespa vector database (StatefulSet)
-4. **`04-redis.yaml`** - Redis cache for sessions and queues
-5. **`05-configmap.yaml`** - Environment configuration for all services
-6. **`06-inference-model-server.yaml`** - Real-time query embedding (offline mode)
-7. **`06-indexing-model-server.yaml`** - Bulk document embedding (offline mode)
-8. **`07-api-server.yaml`** - FastAPI backend with Alembic migrations
-9. **`08-web-server.yaml`** - Next.js frontend
-10. **`09-nginx.yaml`** - NGINX reverse proxy with ConfigMap
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE-FOR-JUNIOR-ENGINEERS.md](documentation/ARCHITECTURE-FOR-JUNIOR-ENGINEERS.md) | Complete architecture explanation with diagrams |
+| [KUBERNETES-NETWORKING-COMPLETE-GUIDE.md](documentation/KUBERNETES-NETWORKING-COMPLETE-GUIDE.md) | Networking, Routes, Network Policies guide |
+| [MODEL-SERVERS-EXPLANATION.md](documentation/MODEL-SERVERS-EXPLANATION.md) | Understanding Inference & Indexing model servers |
+| [END-TO-END-USER-FLOW.md](documentation/END-TO-END-USER-FLOW.md) | User request flow from UI to response |
 
-### Alternative Files
+### Getting Started Guides
 
-- **`pvc-separate-models.yaml`** - Use if your storage only supports `ReadWriteOnce`
+| Document | Description |
+|----------|-------------|
+| [START-HERE.md](guides/START-HERE.md) | Start here for overview |
+| [00-BEFORE-DEPLOYING.md](guides/00-BEFORE-DEPLOYING.md) | Pre-deployment checklist |
+| [QUICK-START.md](guides/QUICK-START.md) | Fast deployment guide |
+| [MINIMAL-DEPLOYMENT-GUIDE.md](guides/MINIMAL-DEPLOYMENT-GUIDE.md) | Minimal setup for testing |
 
-### Key Documentation
+### Troubleshooting Guides
 
-- **`START-HERE.md`** - Quick orientation guide
-- **`USING-EXISTING-PV-FOR-MODELS.md`** - **CRITICAL:** How to use existing PV with models
-- **`00-BEFORE-DEPLOYING.md`** - Prerequisites and OpenShift setup
-- **`QUICK-START.md`** - Fast deployment guide
-- **`MINIMAL-DEPLOYMENT-GUIDE.md`** - Comprehensive deployment guide
-
-### Architecture & Concepts
-
-- **`ARCHITECTURE-FOR-JUNIOR-ENGINEERS.md`** - Detailed architecture for beginners
-- **`HUGGING-FACE-MODELS-FLOW.md`** - How model servers use Hugging Face models
-- **`MODEL-SERVERS-EXPLANATION.md`** - Why two model servers are needed
-- **`AIRGAPPED-MODEL-SERVERS-GUIDE.md`** - Complete air-gapped deployment guide
-
-### Additional Documentation
-
-- **`docs/troubleshooting/`** - Troubleshooting guides (PVC, ArgoCD, Redis, SCC)
-- **`docs/reference/`** - Reference documentation (DNS, architecture, Vespa)
+| Document | Description |
+|----------|-------------|
+| [STEP-BY-STEP-FIX.md](troubleshooting/STEP-BY-STEP-FIX.md) | Manual troubleshooting steps |
+| [NGINX-DNS-TROUBLESHOOTING-GUIDE.md](troubleshooting/NGINX-DNS-TROUBLESHOOTING-GUIDE.md) | DNS resolution issues |
+| [OPENSHIFT-RESOURCE-QUOTA-FIX.md](troubleshooting/OPENSHIFT-RESOURCE-QUOTA-FIX.md) | Resource quota errors |
+| [MISSING-SERVICES-SOLUTION.md](troubleshooting/MISSING-SERVICES-SOLUTION.md) | Service connection issues |
 
 ---
 
-## 🎯 What Gets Deployed
+## 🔧 Manifest Files
 
-### Core Services (7 components)
+### Infrastructure Services
 
-| Service | Purpose | Port | Replicas |
-|---------|---------|------|----------|
-| **NGINX** | Reverse proxy, SSL termination | 80 (external) | 1 |
-| **Web Server** | Next.js frontend UI | 3000 (internal) | 1 |
-| **API Server** | FastAPI backend | 8080 (internal) | 1 |
-| **Inference Model Server** | Real-time query embeddings | 9000 (internal) | 1 |
-| **Indexing Model Server** | Bulk document embeddings | 9000 (internal) | 1 |
-| **PostgreSQL** | Primary database | 5432 (internal) | 1 |
-| **Vespa** | Vector search engine | 19071, 8081 (internal) | 1 |
-| **Redis** | Cache and task queue | 6379 (internal) | 1 |
+| File | Component | Description |
+|------|-----------|-------------|
+| `02-postgresql.yaml` | PostgreSQL | Database for metadata and users |
+| `03-vespa.yaml` | Vespa | Vector search engine |
+| `04-redis.yaml` | Redis | Cache and task queue |
 
-### Not Included (Optional for Full Features)
+### Model Servers
 
-- Background workers (Celery) - For document indexing
-- MinIO - For file storage (can use external S3)
+| File | Component | Description |
+|------|-----------|-------------|
+| `06-inference-model-server.yaml` | Inference Server | Real-time query embeddings |
+| `06-indexing-model-server.yaml` | Indexing Server | Bulk document embeddings |
+
+### Application Services
+
+| File | Component | Description |
+|------|-----------|-------------|
+| `07-api-server.yaml` | API Server | Backend FastAPI application |
+| `07-api-server-service.yaml` | API Service | Service for API server |
+| `08-web-server.yaml` | Web Server | Frontend Next.js application |
+| `08-web-server-service.yaml` | Web Service | Service for web server |
+
+### Gateway
+
+| File | Component | Description |
+|------|-----------|-------------|
+| `09-nginx.yaml` | NGINX | Reverse proxy with initContainer |
+| `09-nginx-simple.yaml` | NGINX Simple | Simplified without initContainer |
+| `09-nginx-hardcoded-namespace.yaml` | NGINX Hardcoded | For namespace issues |
 
 ---
 
-## 🔧 Configuration for Air-Gapped Environments
+## 🛠️ Common Tasks
 
-Both model servers are configured for **offline mode** with existing PV:
+### Scale Services
 
-### Critical Environment Variables
+```bash
+# Scale web server
+oc scale deployment/web-server --replicas=3
 
-```yaml
-env:
-  - name: HF_HUB_OFFLINE
-    value: "1"  # Don't download from Hugging Face
-  - name: TRANSFORMERS_OFFLINE
-    value: "1"  # Force offline mode
-  - name: HF_HOME
-    value: "/app/.cache/huggingface"
+# Scale API server
+oc scale deployment/api-server --replicas=2
 ```
 
-### PVC Mount Configuration
+### Check Logs
 
-```yaml
-volumeMounts:
-  - name: model-cache
-    mountPath: /app/.cache/huggingface
-    readOnly: true  # Models are pre-loaded
+```bash
+# Check API server logs
+oc logs deployment/api-server -f
 
-volumes:
-  - name: model-cache
-    persistentVolumeClaim:
-      claimName: huggingface-models-pvc
+# Check NGINX logs
+oc logs deployment/nginx -f
+
+# Check initContainer logs
+oc logs deployment/nginx -c wait-for-services
+```
+
+### Update Configuration
+
+```bash
+# Update ConfigMap
+oc edit configmap nginx-config
+
+# Restart NGINX to apply changes
+oc rollout restart deployment/nginx
+```
+
+### Access Services
+
+```bash
+# Port forward to web server
+oc port-forward service/web-server 3000:3000
+
+# Port forward to API server
+oc port-forward service/api-server 8080:8080
+
+# Access in browser
+open http://localhost:3000
+```
+
+---
+
+## 🔐 Security
+
+### Network Policies
+
+Apply network policies for security:
+
+```bash
+# See KUBERNETES-NETWORKING-COMPLETE-GUIDE.md for complete policies
+oc apply -f network-policies.yaml
+```
+
+### Company-Only Access
+
+Restrict access to company network:
+
+```bash
+# Create route with IP whitelist
+oc create route edge onyx-route \
+  --service=nginx \
+  --hostname=onyx.company.com \
+  --insecure-policy=Redirect
+
+# Add IP whitelist annotation
+oc annotate route onyx-route \
+  haproxy.router.openshift.io/ip_whitelist="192.168.1.0/24 10.0.0.0/8"
 ```
 
 ---
 
 ## 📊 Resource Requirements
 
-### Minimum Resources
+### Minimum Requirements
 
-| Component | CPU Request | CPU Limit | Memory Request | Memory Limit | Storage |
-|-----------|-------------|-----------|----------------|--------------|---------|
-| NGINX | 100m | 500m | 128Mi | 256Mi | - |
-| Web Server | 500m | 1000m | 512Mi | 1Gi | - |
-| API Server | 1000m | 2000m | 2Gi | 4Gi | - |
-| Inference Model Server | 500m | 2000m | 2Gi | 4Gi | - |
-| Indexing Model Server | 1000m | 4000m | 2Gi | 8Gi | - |
-| PostgreSQL | 500m | 1000m | 1Gi | 2Gi | 10Gi |
-| Vespa | 1000m | 2000m | 4Gi | 8Gi | 30Gi |
-| Redis | 100m | 500m | 256Mi | 512Mi | - |
-| **Total** | **~5 cores** | **~13 cores** | **~12Gi** | **~28Gi** | **~50Gi** |
+| Component | CPU | Memory | Storage |
+|-----------|-----|--------|---------|
+| PostgreSQL | 200m | 256Mi | 5Gi |
+| Redis | 100m | 128Mi | 1Gi |
+| Vespa | 500m | 1Gi | 10Gi |
+| Model Servers (each) | 500m | 2Gi | 5Gi |
+| API Server | 500m | 1Gi | - |
+| Web Server | 200m | 512Mi | - |
+| NGINX | 100m | 128Mi | - |
+| **Total** | **~2.6 cores** | **~7.1 Gi** | **~26 Gi** |
 
-### Model Cache (Shared PVC)
+### Production Requirements
 
-- **Size:** 10Gi (stores Hugging Face models ~5-6GB)
-- **Access Mode:** ReadWriteMany (recommended) or ReadWriteOnce
-- **Storage Class:** Your cluster's storage class (e.g., `nfs-example`)
-
----
-
-## 🔍 Verification & Testing
-
-### Check All Pods are Running
-
-```bash
-oc get pods
-# All should show: STATUS = Running, READY = 1/1
-```
-
-### Verify Models Loaded from PV (No Internet Downloads)
-
-```bash
-# Check inference server logs
-oc logs deployment/inference-model-server | grep -i "loaded model"
-# Should see: "Loaded model from local cache"
-
-# Check indexing server logs
-oc logs deployment/indexing-model-server | grep -i "loaded model"
-# Should see: "Loaded model from local cache"
-
-# Should NOT see any "Downloading" messages!
-```
-
-### Test Health Endpoints
-
-```bash
-# Test model servers
-oc exec deployment/inference-model-server -- curl -s http://localhost:9000/health
-oc exec deployment/indexing-model-server -- curl -s http://localhost:9000/health
-# Both should return: {"status":"healthy"}
-
-# Test API server
-oc exec deployment/api-server -- curl -s http://localhost:8080/health
-```
-
-### Access the UI
-
-```bash
-# Get NGINX service endpoint
-oc get svc nginx
-# Access via LoadBalancer IP or create OpenShift Route
-
-# Create route (OpenShift)
-oc expose svc/nginx
-oc get route nginx
-# Access the URL shown
-```
+| Component | CPU | Memory | Storage |
+|-----------|-----|--------|---------|
+| PostgreSQL | 1000m | 1Gi | 50Gi |
+| Redis | 500m | 256Mi | 5Gi |
+| Vespa | 2000m | 2Gi | 100Gi |
+| Model Servers (each) | 2000m | 4Gi | 10Gi |
+| API Server | 2000m | 2Gi | - |
+| Web Server | 1000m | 1Gi | - |
+| NGINX | 500m | 256Mi | - |
+| **Total** | **~11 cores** | **~14.5 Gi** | **~175 Gi** |
 
 ---
 
 ## 🐛 Troubleshooting
 
-### PVC Not Binding
+### NGINX Connection Timeout
 
+See [STEP-BY-STEP-FIX.md](troubleshooting/STEP-BY-STEP-FIX.md)
+
+**Quick fix:**
 ```bash
-oc describe pvc huggingface-models-pvc
-# Check for errors, verify StorageClass name matches
+# Check if services exist
+oc get service web-server
+oc get service api-server
+
+# Check if services have endpoints
+oc get endpoints web-server
+oc get endpoints api-server
+
+# If missing, create services
+oc apply -f manifests/07-api-server-service.yaml
+oc apply -f manifests/08-web-server-service.yaml
 ```
 
-See: `docs/troubleshooting/TROUBLESHOOTING-PVC.md`
+### DNS Resolution Issues
 
-### Models Not Found in PV
+See [NGINX-DNS-TROUBLESHOOTING-GUIDE.md](troubleshooting/NGINX-DNS-TROUBLESHOOTING-GUIDE.md)
 
+**Quick test:**
 ```bash
-# Create debug pod to check PV contents
-oc run debug-pv --image=registry.access.redhat.com/ubi8/ubi:latest --command -- sleep infinity
-oc set volume pod/debug-pv --add --name=models --type=pvc --claim-name=huggingface-models-pvc --mount-path=/models
-oc exec debug-pv -- ls -lh /models/
-# Should show model directories
+# Test DNS from NGINX pod
+oc exec deployment/nginx -- nslookup web-server
+oc exec deployment/nginx -- nslookup api-server
 ```
 
-See: `USING-EXISTING-PV-FOR-MODELS.md`
+### Resource Quota Errors
 
-### Pods Try to Download from Internet
+See [OPENSHIFT-RESOURCE-QUOTA-FIX.md](troubleshooting/OPENSHIFT-RESOURCE-QUOTA-FIX.md)
 
-Check if offline mode is enabled:
+**Quick fix:** Add resource limits to all containers
 
-```bash
-oc exec deployment/inference-model-server -- env | grep HF_
-# Must show: HF_HUB_OFFLINE=1, TRANSFORMERS_OFFLINE=1
-```
-
-### OpenShift Security Context Issues
+### Pod Not Starting
 
 ```bash
-# Grant anyuid SCC if needed
-oc adm policy add-scc-to-user anyuid -z default
+# Check pod status
+oc get pods
+
+# Describe pod to see events
+oc describe pod <pod-name>
+
+# Check logs
+oc logs <pod-name>
+
+# Check previous logs (if crashed)
+oc logs <pod-name> --previous
 ```
 
-See: `docs/troubleshooting/TROUBLESHOOTING-SCC.md`
+---
+
+## 🔄 Updates and Maintenance
+
+### Update Onyx Images
+
+```bash
+# Set new image
+oc set image deployment/api-server api-server=onyxdotapp/onyx-backend:latest
+oc set image deployment/web-server web-server=onyxdotapp/onyx-web-server:latest
+
+# Check rollout status
+oc rollout status deployment/api-server
+oc rollout status deployment/web-server
+```
+
+### Backup Data
+
+```bash
+# Backup PostgreSQL
+oc exec deployment/postgresql -- pg_dump -U postgres onyx > backup.sql
+
+# Backup Vespa (if needed)
+oc exec deployment/vespa -- vespa-visit > vespa-backup.json
+```
+
+### Restore Data
+
+```bash
+# Restore PostgreSQL
+cat backup.sql | oc exec -i deployment/postgresql -- psql -U postgres onyx
+```
 
 ---
 
-## 📖 Documentation Guide
+## 📞 Support
 
-### Getting Started (Read First)
+### Useful Commands
 
-1. **`START-HERE.md`** - Orientation and next steps
-2. **`USING-EXISTING-PV-FOR-MODELS.md`** - Critical for air-gapped setup
-3. **`00-BEFORE-DEPLOYING.md`** - Prerequisites checklist
-4. **`QUICK-START.md`** - Fast deployment
+```bash
+# Get all resources
+oc get all
 
-### Understanding the System
+# Check events
+oc get events --sort-by='.lastTimestamp'
 
-- **`ARCHITECTURE-FOR-JUNIOR-ENGINEERS.md`** - Complete architecture
-- **`HUGGING-FACE-MODELS-FLOW.md`** - Model download and caching
-- **`MODEL-SERVERS-EXPLANATION.md`** - Why two servers
+# Check resource usage
+oc adm top pods
+oc adm top nodes
 
-### Advanced Topics
+# Debug pod
+oc debug deployment/api-server
+```
 
-- **`AIRGAPPED-MODEL-SERVERS-GUIDE.md`** - Complete air-gapped guide
-- **`docs/reference/DNS-NAMING-EXPLAINED.md`** - Kubernetes DNS
-- **`docs/reference/VESPA-STATEFULSET-EXPLANATION.md`** - Why Vespa uses StatefulSet
+### Documentation Links
 
----
-
-## 🔗 Related Resources
-
-- **Main Onyx Repo:** https://github.com/onyx-dot-app/onyx
-- **Docker Compose Deployment:** `../onyx-repo/deployment/docker_compose/`
-- **Helm Charts:** `../onyx-repo/deployment/helm/`
+- **Architecture:** [documentation/ARCHITECTURE-FOR-JUNIOR-ENGINEERS.md](documentation/ARCHITECTURE-FOR-JUNIOR-ENGINEERS.md)
+- **Networking:** [documentation/KUBERNETES-NETWORKING-COMPLETE-GUIDE.md](documentation/KUBERNETES-NETWORKING-COMPLETE-GUIDE.md)
+- **Troubleshooting:** [troubleshooting/](troubleshooting/)
+- **Guides:** [guides/](guides/)
 
 ---
 
-## 📝 Key Design Decisions
+## 🤝 Contributing
 
-1. **Two Model Servers:** Separate inference (real-time) and indexing (bulk) for performance
-2. **Offline Mode:** `HF_HUB_OFFLINE=1` prevents internet access for air-gapped environments
-3. **Shared PVC:** Both model servers use same PVC (if ReadWriteMany supported)
-4. **StatefulSet for Vespa:** Ensures stable network identity and persistent storage
-5. **No Background Workers:** Minimal deployment for UI and chat only
-6. **Pinned Image Versions:** No `:latest` tags for production stability
+When adding new manifests or documentation:
 
----
-
-## ✅ What Works
-
-- ✅ Web UI accessible
-- ✅ User authentication (basic)
-- ✅ Chat functionality (with external LLM)
-- ✅ Document search (if documents indexed)
-- ✅ Real-time query embeddings
-- ✅ Offline operation (no internet needed)
-
-## ❌ What Doesn't Work (Minimal Setup)
-
-- ❌ Document indexing (needs background workers)
-- ❌ Connector sync (needs background workers)
-- ❌ File uploads (needs MinIO or S3)
-- ❌ Scheduled tasks (needs Celery beat)
+1. **Manifests** → `manifests/` directory
+2. **Architecture docs** → `documentation/` directory
+3. **How-to guides** → `guides/` directory
+4. **Troubleshooting** → `troubleshooting/` directory
+5. **Scripts** → `scripts/` directory
 
 ---
 
-## 🚀 Upgrade Path
+## 📄 License
 
-To add missing features:
-
-1. **Add Background Workers:** Deploy Celery workers for document processing
-2. **Add MinIO:** Deploy object storage for file uploads
-3. **Scale Services:** Increase replicas for high availability
-4. **Add Monitoring:** Deploy Prometheus/Grafana for observability
+This deployment configuration is based on the Onyx open-source project.
 
 ---
 
-## 🆘 Support
+**Repository:** https://github.com/chiheb08/Onyx-k8s-deployment
 
-**Issues or questions?**
-
-- Check `docs/troubleshooting/` for common issues
-- Review `USING-EXISTING-PV-FOR-MODELS.md` for PV setup
-- See `START-HERE.md` for quick orientation
-
----
-
-**This is a production-ready minimal deployment for air-gapped OpenShift environments!** 🎉
+**Onyx Project:** https://github.com/onyx-dot-app/onyx
