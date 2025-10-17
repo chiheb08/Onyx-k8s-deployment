@@ -85,6 +85,22 @@ data:
   MODEL_SERVER_PORT: "9000"
   
   # ============================================================================
+  # INDEXING MODEL SERVER CONFIGURATION
+  # ============================================================================
+  # Indexing Model Server generates embeddings for:
+  # - Document indexing (background processing)
+  # - Bulk embedding generation
+  # - Large-scale document processing
+  # 
+  # This points to the indexing server (separate from inference server)
+  # Used by: Background Workers (for document indexing)
+  # 
+  # Note: Both servers use the same image but with different configurations
+  # ============================================================================
+  INDEXING_MODEL_SERVER_HOST: "indexing-model-server"
+  INDEXING_MODEL_SERVER_PORT: "9000"
+  
+  # ============================================================================
   # INTERNAL SERVICE URLs
   # ============================================================================
   # INTERNAL_URL: Used for server-to-server communication

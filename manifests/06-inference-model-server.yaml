@@ -75,6 +75,8 @@ spec:
               value: "1"  # Force transformers to use cached models only
             - name: MODEL_SERVER_PORT
               value: "9000"
+            - name: INDEXING_MODEL_SERVER_PORT
+              value: "9000"
           resources:
             requests:
               cpu: 500m          # Reduced from Helm (2000m) for minimal
