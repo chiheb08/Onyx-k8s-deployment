@@ -3,6 +3,14 @@
 # ============================================================================
 # Centralized configuration for all Onyx services
 # Based on Helm chart configmap.yaml
+# 
+# This ConfigMap is injected into:
+# - API Server (backend)
+# - Web Server (frontend)
+# - Background Workers (Celery)
+# - Model Servers (inference & indexing)
+# 
+# See: documentation/ENVIRONMENT-VARIABLES-EXPLAINED.md for detailed explanation
 # ============================================================================
 
 apiVersion: v1
@@ -10,33 +18,138 @@ kind: ConfigMap
 metadata:
   name: onyx-config
 data:
-  # Service Endpoints (uses short names - works within same namespace)
+  # ============================================================================
+  # DATABASE CONFIGURATION
+  # ============================================================================
+  # PostgreSQL is the primary relational database storing:
+  # - User accounts and authentication
+  # - Document metadata and permissions
+  # - Connector configurations
+  # - Chat history and feedback
+  # - System settings and configurations
+  # 
+  # Used by: API Server, Background Workers, Alembic migrations
+  # ============================================================================
   POSTGRES_HOST: "postgresql"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "postgres"
   
+  # ============================================================================
+  # VECTOR SEARCH ENGINE CONFIGURATION
+  # ============================================================================
+  # Vespa is the vector database storing:
+  # - Document chunks (text segments)
+  # - Embeddings (vector representations of text)
+  # - Metadata for search filtering
+  # 
+  # Format: vespa-0.vespa-service (StatefulSet pod with headless service)
+  # Used by: API Server (for search), Background Workers (for indexing)
+  # ============================================================================
   VESPA_HOST: "vespa-0.vespa-service"
   
+  # ============================================================================
+  # REDIS CACHE & MESSAGE BROKER CONFIGURATION
+  # ============================================================================
+  # Redis serves two critical purposes:
+  # 1. Cache: Stores temporary data for fast retrieval
+  #    - API responses
+  #    - Session data
+  #    - LLM responses
+  #    - Rate limiting counters
+  # 
+  # 2. Message Broker: Coordinates background tasks
+  #    - Celery task queue (document indexing, connector sync)
+  #    - Task results and status
+  #    - Worker coordination
+  #    - Alembic migration locking (prevents concurrent migrations)
+  # 
+  # Used by: API Server, Background Workers, Alembic, Web Server
+  # ============================================================================
   REDIS_HOST: "redis"
   REDIS_PORT: "6379"
   
+  # ============================================================================
+  # AI/ML MODEL SERVER CONFIGURATION
+  # ============================================================================
+  # Inference Model Server generates embeddings for:
+  # - User queries (real-time search)
+  # - Chat messages
+  # - On-demand embedding requests
+  # 
+  # This points to the inference server (NOT indexing server)
+  # Used by: API Server (for real-time operations)
+  # 
+  # Note: Indexing server is accessed separately by background workers
+  # ============================================================================
   MODEL_SERVER_HOST: "inference-model-server"
   MODEL_SERVER_PORT: "9000"
   
-  # Internal URLs
+  # ============================================================================
+  # INTERNAL SERVICE URLs
+  # ============================================================================
+  # INTERNAL_URL: Used for server-to-server communication
+  # - Web Server → API Server communication
+  # - Internal health checks
+  # - SSR (Server-Side Rendering) API calls
+  # 
+  # Used by: Web Server (Next.js backend)
+  # ============================================================================
   INTERNAL_URL: "http://api-server:8080"
   
-  # Auth Settings
+  # ============================================================================
+  # AUTHENTICATION CONFIGURATION
+  # ============================================================================
+  # AUTH_TYPE: Authentication method
+  # - "basic": Username/password authentication (default)
+  # - "google_oauth": Google OAuth
+  # - "oidc": OpenID Connect
+  # - "saml": SAML 2.0
+  # 
+  # SESSION_EXPIRE_TIME_SECONDS: How long user sessions last
+  # - 86400 = 24 hours
+  # - After this, users must log in again
+  # 
+  # Used by: API Server, Web Server
+  # ============================================================================
   AUTH_TYPE: "basic"
   SESSION_EXPIRE_TIME_SECONDS: "86400"
   
-  # Web Domain
+  # ============================================================================
+  # WEB APPLICATION DOMAIN CONFIGURATION
+  # ============================================================================
+  # WEB_DOMAIN: Full URL where Onyx UI is accessible
+  # - Used for: Redirects, CORS, OAuth callbacks, email links
+  # - Change to your actual domain in production (e.g., https://onyx.company.com)
+  # 
+  # DOMAIN: Base domain without protocol
+  # - Used for: Cookie domain, CORS origin validation
+  # - Change to your actual domain in production (e.g., onyx.company.com)
+  # 
+  # Used by: API Server, Web Server
+  # ============================================================================
   WEB_DOMAIN: "http://localhost:3000"
   DOMAIN: "localhost"
   
-  # Disable features not needed for minimal deployment
+  # ============================================================================
+  # FEATURE FLAGS
+  # ============================================================================
+  # DISABLE_GENERATIVE_AI: Controls LLM chat functionality
+  # - "false": Chat with LLM enabled (requires LLM provider configured)
+  # - "true": Disables chat, Onyx works as search-only system
+  # 
+  # Used by: API Server, Web Server
+  # ============================================================================
   DISABLE_GENERATIVE_AI: "false"
   
-  # Timeouts
+  # ============================================================================
+  # TIMEOUT CONFIGURATION
+  # ============================================================================
+  # QA_TIMEOUT: Maximum time (seconds) for question-answering requests
+  # - Includes: Vector search + LLM generation + processing
+  # - 60 seconds is reasonable for most queries
+  # - Increase if using slow LLM providers or large context windows
+  # 
+  # Used by: API Server
+  # ============================================================================
   QA_TIMEOUT: "60"
 
