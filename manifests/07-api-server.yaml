@@ -54,6 +54,7 @@ spec:
               alembic upgrade head
               echo "Migrations complete!"
           env:
+            # PostgreSQL connection
             - name: POSTGRES_HOST
               valueFrom:
                 configMapKeyRef:
@@ -79,6 +80,29 @@ spec:
                 secretKeyRef:
                   name: postgresql-secret
                   key: POSTGRES_PASSWORD
+            # Redis connection (required by Alembic for coordination)
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: onyx-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: onyx-config
+                  key: REDIS_PORT
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
       containers:
         - name: api-server
           image: onyxdotapp/onyx-backend:nightly-20241004
