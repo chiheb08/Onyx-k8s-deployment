@@ -30,7 +30,7 @@ data:
   # 
   # Used by: API Server, Background Workers, Alembic migrations
   # ============================================================================
-  POSTGRES_HOST: "postgresql"
+  POSTGRES_HOST: "postgresql.onyx-infra.svc.cluster.local"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "postgres"
   
@@ -42,10 +42,10 @@ data:
   # - Embeddings (vector representations of text)
   # - Metadata for search filtering
   # 
-  # Format: vespa-0.vespa-service (StatefulSet pod with headless service)
+  # Format: vespa-0.vespa-service.onyx-infra.svc.cluster.local (StatefulSet pod with headless service)
   # Used by: API Server (for search), Background Workers (for indexing)
   # ============================================================================
-  VESPA_HOST: "vespa-0.vespa-service"
+  VESPA_HOST: "vespa-0.vespa-service.onyx-infra.svc.cluster.local"
   
   # ============================================================================
   # REDIS CACHE & MESSAGE BROKER CONFIGURATION
@@ -65,7 +65,7 @@ data:
   # 
   # Used by: API Server, Background Workers, Alembic, Web Server
   # ============================================================================
-  REDIS_HOST: "redis"
+  REDIS_HOST: "redis.onyx-infra.svc.cluster.local"
   REDIS_PORT: "6379"
   
   # ============================================================================
@@ -81,7 +81,7 @@ data:
   # 
   # Note: Indexing server is accessed separately by background workers
   # ============================================================================
-  MODEL_SERVER_HOST: "inference-model-server"
+  MODEL_SERVER_HOST: "inference-model-server.onyx-infra.svc.cluster.local"
   MODEL_SERVER_PORT: "9000"
   
   # ============================================================================
@@ -97,7 +97,7 @@ data:
   # 
   # Note: Both servers use the same image but with different configurations
   # ============================================================================
-  INDEXING_MODEL_SERVER_HOST: "indexing-model-server"
+  INDEXING_MODEL_SERVER_HOST: "indexing-model-server.onyx-infra.svc.cluster.local"
   INDEXING_MODEL_SERVER_PORT: "9000"
   
   # ============================================================================
@@ -110,7 +110,7 @@ data:
   # 
   # Used by: Web Server (Next.js backend)
   # ============================================================================
-  INTERNAL_URL: "http://api-server:8080"
+  INTERNAL_URL: "http://api-server.onyx-infra.svc.cluster.local:8080"
   
   # ============================================================================
   # AUTHENTICATION CONFIGURATION
