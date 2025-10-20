@@ -168,4 +168,15 @@ data:
   # Used by: API Server
   # ============================================================================
   QA_TIMEOUT: "60"
+  
+  # ============================================================================
+  # OFFLINE/AIR-GAPPED CONFIGURATION
+  # ============================================================================
+  # SKIP_WARM_UP: Skip model warmup and NLTK downloads at startup
+  # - "true": Skip warmup (recommended for air-gapped environments)
+  # - "false": Allow warmup and downloads (requires internet access)
+  # 
+  # Used by: API Server, Model Servers, Background Workers
+  # ============================================================================
+  SKIP_WARM_UP: "true"
 
