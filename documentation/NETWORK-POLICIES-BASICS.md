@@ -271,8 +271,9 @@ From a test pod (or the `api-server` pod), run any of these:
 # 1) Fast readiness check
 oc exec -it deploy/api-server -- pg_isready -h postgresql -p 5432
 
-# 2) TCP reachability only (no auth)
-oc exec -it deploy/api-server -- sh -c "nc -vz postgresql 5432 || true"
+# 2) TCP reachability only using curl (no nc in base images)
+# curl exits 52 on bare TCP, so just check it reaches the socket
+oc exec -it deploy/api-server -- sh -c "curl -sS --connect-timeout 3 http://postgresql:5432 || true"
 
 # 3) Actual query (requires creds available as env)
 oc exec -it deploy/api-server -- sh -c \
