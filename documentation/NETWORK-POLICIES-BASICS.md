@@ -261,3 +261,21 @@ spec:
 - Policies are **additive** – multiple policies can apply to the same pod
 
 This guide should give you a solid foundation to design and debug NetworkPolicies in our Onyx/OpenShift deployments.
+
+---
+
+## (Bonus) Quick test: Postgres connectivity
+From a test pod (or the `api-server` pod), run any of these:
+
+```bash
+# 1) Fast readiness check
+oc exec -it deploy/api-server -- pg_isready -h postgresql -p 5432
+
+# 2) TCP reachability only (no auth)
+oc exec -it deploy/api-server -- sh -c "nc -vz postgresql 5432 || true"
+
+# 3) Actual query (requires creds available as env)
+oc exec -it deploy/api-server -- sh -c \
+  "PGPASSWORD=$POSTGRES_PASSWORD psql -h postgresql -U $POSTGRES_USER -d $POSTGRES_DB -c 'select 1;'"
+```
+If these fail, check: endpoints for the `postgresql` Service, your egress NetworkPolicy to port 5432, and API pod logs.
