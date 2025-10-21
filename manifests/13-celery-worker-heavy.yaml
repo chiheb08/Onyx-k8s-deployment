@@ -1,0 +1,89 @@
+# ============================================================================
+# Celery Worker - Heavy for Onyx
+# ============================================================================
+# Handles resource-intensive operations
+# Image: onyxdotapp/onyx-backend
+# Queues: connector_pruning, connector_doc_permissions_sync, etc.
+# ============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-heavy
+  labels:
+    app: celery-worker-heavy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-heavy
+  template:
+    metadata:
+      labels:
+        app: celery-worker-heavy
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-heavy
+          image: onyxdotapp/onyx-backend:nightly-20241004
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.heavy
+            - worker
+            - --loglevel=INFO
+            - --hostname=heavy@%n
+            - -Q
+            - connector_pruning,connector_doc_permissions_sync,connector_external_group_sync,csv_generation
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+          env:
+            # Database credentials from secret
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_PASSWORD
+            # Redis password from secret
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+            # NLTK data path (for air-gapped environments)
+            - name: NLTK_DATA
+              value: "/usr/local/share/nltk_data"
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 4Gi
+            limits:
+              cpu: 2000m
+              memory: 8Gi
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - celery -A onyx.background.celery.versioned_apps.heavy inspect ping -d heavy@$HOSTNAME
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - celery -A onyx.background.celery.versioned_apps.heavy inspect ping -d heavy@$HOSTNAME
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+      restartPolicy: Always
+

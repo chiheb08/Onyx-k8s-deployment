@@ -1,0 +1,91 @@
+# ============================================================================
+# Celery Worker - Docfetching for Onyx
+# ============================================================================
+# Fetches documents from external data sources (connectors)
+# Image: onyxdotapp/onyx-backend
+# Queues: docfetching
+# ============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-docfetching
+  labels:
+    app: celery-worker-docfetching
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-docfetching
+  template:
+    metadata:
+      labels:
+        app: celery-worker-docfetching
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-docfetching
+          image: onyxdotapp/onyx-backend:nightly-20241004
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.docfetching
+            - worker
+            - --pool=threads
+            - --concurrency=4
+            - --loglevel=INFO
+            - --hostname=docfetching@%n
+            - -Q
+            - docfetching
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+          env:
+            # Database credentials from secret
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_PASSWORD
+            # Redis password from secret
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+            # NLTK data path (for air-gapped environments)
+            - name: NLTK_DATA
+              value: "/usr/local/share/nltk_data"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 8Gi  # High memory for document fetching
+            limits:
+              cpu: 2000m
+              memory: 16Gi
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - celery -A onyx.background.celery.versioned_apps.docfetching inspect ping -d docfetching@$HOSTNAME
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - celery -A onyx.background.celery.versioned_apps.docfetching inspect ping -d docfetching@$HOSTNAME
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+      restartPolicy: Always
+

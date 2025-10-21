@@ -1,0 +1,100 @@
+# ============================================================================
+# Celery Worker - Docprocessing for Onyx
+# ============================================================================
+# CRITICAL: Processes fetched documents through the indexing pipeline
+# - Chunks documents and adds contextual information
+# - Embeds chunks via INDEXING MODEL SERVER
+# - Writes chunks to Vespa vector database
+# - Updates document metadata
+# 
+# Image: onyxdotapp/onyx-backend
+# Queues: docprocessing
+# ============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-docprocessing
+  labels:
+    app: celery-worker-docprocessing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-docprocessing
+  template:
+    metadata:
+      labels:
+        app: celery-worker-docprocessing
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-docprocessing
+          image: onyxdotapp/onyx-backend:nightly-20241004
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.docprocessing
+            - worker
+            - --pool=threads
+            - --concurrency=6
+            - --prefetch-multiplier=1
+            - --loglevel=INFO
+            - --hostname=docprocessing@%n
+            - -Q
+            - docprocessing
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+          env:
+            # Database credentials from secret
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_PASSWORD
+            # Redis password from secret
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+            # NLTK data path (for air-gapped environments)
+            - name: NLTK_DATA
+              value: "/usr/local/share/nltk_data"
+            # Enable multipass indexing (optional)
+            - name: ENABLE_MULTIPASS_INDEXING
+              value: "false"
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 8Gi  # High memory for document processing
+            limits:
+              cpu: 4000m  # High CPU for embedding generation
+              memory: 16Gi
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - celery -A onyx.background.celery.versioned_apps.docprocessing inspect ping -d docprocessing@$HOSTNAME
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - celery -A onyx.background.celery.versioned_apps.docprocessing inspect ping -d docprocessing@$HOSTNAME
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+      restartPolicy: Always
+

@@ -1,0 +1,89 @@
+# ============================================================================
+# Celery Worker - Primary for Onyx
+# ============================================================================
+# Handles core background tasks and system-wide operations
+# Image: onyxdotapp/onyx-backend
+# Queues: celery, periodic_tasks
+# ============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-primary
+  labels:
+    app: celery-worker-primary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-primary
+  template:
+    metadata:
+      labels:
+        app: celery-worker-primary
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-primary
+          image: onyxdotapp/onyx-backend:nightly-20241004
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.primary
+            - worker
+            - --loglevel=INFO
+            - --hostname=primary@%n
+            - -Q
+            - celery,periodic_tasks
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+          env:
+            # Database credentials from secret
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_PASSWORD
+            # Redis password from secret
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+            # NLTK data path (for air-gapped environments)
+            - name: NLTK_DATA
+              value: "/usr/local/share/nltk_data"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - celery -A onyx.background.celery.versioned_apps.primary inspect ping -d primary@$HOSTNAME
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - celery -A onyx.background.celery.versioned_apps.primary inspect ping -d primary@$HOSTNAME
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+      restartPolicy: Always
+

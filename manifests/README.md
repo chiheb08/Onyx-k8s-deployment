@@ -31,6 +31,17 @@ All Kubernetes/OpenShift YAML deployment files for Onyx.
 | `08-web-server.yaml` | Web Server Deployment | 3000 | Frontend Next.js application |
 | `08-web-server-service.yaml` | Web Server Service | 3000 | Service for web server |
 
+### Background Workers (Deploy Fourth - CRITICAL!)
+
+| File | Component | Queues | Description |
+|------|-----------|--------|-------------|
+| `10-celery-beat.yaml` | Celery Beat | N/A | Task scheduler (periodic tasks) |
+| `11-celery-worker-primary.yaml` | Primary Worker | celery, periodic_tasks | Core background tasks |
+| `12-celery-worker-light.yaml` | Light Worker | Multiple | Lightweight operations |
+| `13-celery-worker-heavy.yaml` | Heavy Worker | Multiple | Resource-intensive operations |
+| `14-celery-worker-docfetching.yaml` | Docfetching Worker | docfetching | Fetch documents from connectors |
+| `15-celery-worker-docprocessing.yaml` | Docprocessing Worker | docprocessing | **Process & embed documents (CRITICAL!)** |
+
 ### Gateway (Deploy Last)
 
 | File | Component | Port | Description |
@@ -48,16 +59,29 @@ All Kubernetes/OpenShift YAML deployment files for Onyx.
 oc apply -f 02-postgresql.yaml
 oc apply -f 03-vespa.yaml
 oc apply -f 04-redis.yaml
+oc apply -f 05-configmap.yaml
 
 # 2. Model Servers
 oc apply -f 06-inference-model-server.yaml
 oc apply -f 06-indexing-model-server.yaml
 
 # 3. Application
-oc apply -f 07-api-server-service.yaml
 oc apply -f 07-api-server.yaml
-oc apply -f 08-web-server-service.yaml
 oc apply -f 08-web-server.yaml
+
+# 4. Background Workers (CRITICAL!)
+oc apply -f 10-celery-beat.yaml
+oc apply -f 11-celery-worker-primary.yaml
+oc apply -f 12-celery-worker-light.yaml
+oc apply -f 13-celery-worker-heavy.yaml
+oc apply -f 14-celery-worker-docfetching.yaml
+oc apply -f 15-celery-worker-docprocessing.yaml  # CRITICAL for document indexing
+
+# Wait for workers to be ready
+oc get pods -l scope=onyx-backend-celery -w
+
+# 5. Gateway (Deploy Last)
+oc apply -f 09-nginx.yaml
 
 # 4. Gateway
 oc apply -f 09-nginx-simple.yaml

@@ -1,0 +1,87 @@
+# ============================================================================
+# Celery Beat (Scheduler) for Onyx
+# ============================================================================
+# Schedules periodic background tasks
+# Image: onyxdotapp/onyx-backend
+# Replicas: 1 (MUST be exactly 1 to avoid duplicate tasks)
+# ============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  labels:
+    app: celery-beat
+spec:
+  replicas: 1  # CRITICAL: Must be exactly 1 replica
+  selector:
+    matchLabels:
+      app: celery-beat
+  template:
+    metadata:
+      labels:
+        app: celery-beat
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-beat
+          image: onyxdotapp/onyx-backend:nightly-20241004
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.beat
+            - beat
+            - --loglevel=INFO
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+          env:
+            # Database credentials from secret
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_PASSWORD
+            # Redis password from secret
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+            # NLTK data path (for air-gapped environments)
+            - name: NLTK_DATA
+              value: "/usr/local/share/nltk_data"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          # Beat scheduler doesn't have HTTP endpoints, use exec probe
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep -f "celery.*beat"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep -f "celery.*beat"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+      restartPolicy: Always
+
