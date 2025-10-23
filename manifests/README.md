@@ -54,6 +54,22 @@ All Kubernetes/OpenShift YAML deployment files for Onyx.
 
 ## 🚀 Deployment Order
 
+### Step 1: Configure Company Authentication
+
+**IMPORTANT:** Before deploying, configure company-only authentication:
+
+```bash
+# Edit the ConfigMap to set your company domain
+# Replace 'yourcompany.com' with your actual company domain
+sed -i 's/yourcompany.com/acme-corp.com/g' 05-configmap.yaml
+
+# Or manually edit 05-configmap.yaml:
+# VALID_EMAIL_DOMAINS: "acme-corp.com"
+# ENABLE_EMAIL_INVITES: "true"
+```
+
+### Step 2: Deploy Infrastructure
+
 ```bash
 # 1. Infrastructure
 oc apply -f 02-postgresql.yaml
@@ -83,11 +99,25 @@ oc get pods -l scope=onyx-backend-celery -w
 # 5. Gateway (Deploy Last)
 oc apply -f 09-nginx.yaml
 
-# 4. Gateway
-oc apply -f 09-nginx-simple.yaml
-
-# 5. Expose externally
+# 6. Expose externally
 oc expose service nginx --hostname=onyx.company.com
+```
+
+### Step 3: Configure Authentication
+
+```bash
+# Get the Onyx URL
+ONYX_URL=$(oc get route nginx -o jsonpath='{.spec.host}')
+
+# Set up your API key (get this from the first admin user)
+export API_KEY="your-api-key-here"
+export ONYX_API_URL="https://$ONYX_URL"
+
+# Invite your first admin user
+./scripts/invite-user.sh "admin@yourcompany.com" "admin"
+
+# Or invite multiple users from a file
+./scripts/invite-users.sh users.txt
 ```
 
 ---
@@ -131,9 +161,59 @@ oc exec deployment/nginx -- curl http://api-server:8080
 
 ---
 
+## 🔐 Company Authentication Setup
+
+### Quick Setup
+
+1. **Configure Company Domain:**
+   ```bash
+   # Edit 05-configmap.yaml and replace 'yourcompany.com' with your domain
+   sed -i 's/yourcompany.com/acme-corp.com/g' 05-configmap.yaml
+   ```
+
+2. **Deploy with Authentication:**
+   ```bash
+   # Apply the updated configuration
+   oc apply -f 05-configmap.yaml
+   
+   # Restart API server to pick up new settings
+   oc rollout restart deployment/api-server
+   ```
+
+3. **Invite Users:**
+   ```bash
+   # Set up environment
+   export ONYX_API_URL="https://your-onyx-domain.com"
+   export API_KEY="your-api-key-here"
+   
+   # Invite individual users
+   ./scripts/invite-user.sh "admin@yourcompany.com" "admin"
+   
+   # Or invite multiple users
+   ./scripts/invite-users.sh users.txt
+   ```
+
+### Authentication Methods
+
+- **Invitation-Only**: Only invited users can register (`ENABLE_EMAIL_INVITES: "true"`)
+- **Domain-Based**: Only company email domains allowed (`VALID_EMAIL_DOMAINS: "yourcompany.com"`)
+- **Combined**: Both invitation and domain restrictions (recommended)
+
+### User Management
+
+- **Admin Users**: Full system access, can invite others
+- **Regular Users**: Standard access to search and documents
+- **Curators**: Can manage content and connectors
+- **Limited Users**: Restricted access to basic features
+
+For detailed authentication setup, see [Company-Only Authentication Guide](../documentation/COMPANY-ONLY-AUTHENTICATION.md).
+
+---
+
 ## 📝 Notes
 
 - All services use `ClusterIP` type (internal only)
 - External access is via OpenShift Route
 - Resource requests/limits are configured for OpenShift resource quotas
 - Services must exist before NGINX can route to them
+- **Company authentication is enabled by default** - configure your domain before deployment
