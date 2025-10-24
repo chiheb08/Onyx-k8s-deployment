@@ -348,3 +348,4 @@ For additional help with company authentication setup:
 4. Reach out to the Onyx community
 
 Remember to replace `yourcompany.com` with your actual company domain and configure email settings for the invitation system to work properly.
+

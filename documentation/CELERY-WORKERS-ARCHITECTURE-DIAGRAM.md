@@ -788,3 +788,4 @@ This architecture ensures that:
 - Background processing doesn't block user interactions (separate workers)
 - Large documents can be processed efficiently (bulk processing with Indexing Model Server)
 - System is scalable and resilient (multiple workers, task queues)
+

@@ -1067,3 +1067,4 @@ Without Celery workers, Onyx would be unable to process documents, sync connecto
 - [Kubernetes Celery Patterns](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
 - [Prometheus Monitoring](https://prometheus.io/docs/)
 - [Grafana Dashboards](https://grafana.com/docs/)
+

@@ -669,3 +669,4 @@ The key is to start with a minimal configuration, monitor usage patterns, and sc
 - [AWS Spot Instances](https://aws.amazon.com/ec2/spot/)
 - [Google Cloud Preemptible Instances](https://cloud.google.com/compute/docs/instances/preemptible)
 - [Azure Spot Instances](https://azure.microsoft.com/en-us/pricing/spot/)
+
