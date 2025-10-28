@@ -55,12 +55,54 @@ Based on the architecture diagram, here's a brief overview of each service with 
 ## 4. 🔄 **BACKGROUND WORKERS (Celery)**
 
 **What is this service?**
-- Celery workers running asynchronous tasks like document indexing, connector sync, and system maintenance
+- Multiple specialized Celery workers managed by Supervisord, each handling specific types of asynchronous tasks
 
 **Why do we need it?**
-- Handles long-running tasks without blocking the API, enables scheduled operations, and provides parallel processing
+- Handles long-running tasks without blocking the API, enables scheduled operations, provides parallel processing, and separates workloads by type
 
-**In/Out calls:**
+**Worker Types:**
+
+### 4a. **Primary Worker**
+- **What**: Core background tasks and system-wide operations
+- **Tasks**: Connector deletion, Vespa sync, pruning, LLM model updates
+- **Concurrency**: 4 threads
+
+### 4b. **Docfetching Worker**
+- **What**: Fetches documents from external data sources (connectors)
+- **Tasks**: Document retrieval, watchdog monitoring for stuck connectors
+- **Spawns**: Docprocessing tasks for each document batch
+
+### 4c. **Docprocessing Worker**
+- **What**: Processes fetched documents through the indexing pipeline
+- **Tasks**: Document upserts, chunking, embedding generation, Vespa indexing
+- **Most Critical**: For document indexing functionality
+
+### 4d. **Light Worker**
+- **What**: Handles lightweight, fast operations
+- **Tasks**: Vespa operations, document permissions sync, external group sync
+- **Concurrency**: Higher (for quick tasks)
+
+### 4e. **Heavy Worker**
+- **What**: Handles resource-intensive operations
+- **Tasks**: Document pruning operations
+- **Concurrency**: 4 threads (limited for resource management)
+
+### 4f. **KG Processing Worker**
+- **What**: Knowledge Graph processing and clustering
+- **Tasks**: Document relationships, clustering algorithms
+- **Purpose**: Builds connections between documents
+
+### 4g. **Monitoring Worker**
+- **What**: System health monitoring and metrics collection
+- **Tasks**: Celery queue monitoring, process memory checks, system status
+- **Concurrency**: Single thread (monitoring doesn't need parallelism)
+
+### 4h. **Beat Worker**
+- **What**: Celery's scheduler for periodic tasks (cron-like)
+- **Tasks**: Schedules indexing checks (15s), connector deletion (20s), Vespa sync (20s), pruning (20s), KG processing (60s), monitoring (5min), cleanup (hourly)
+- **Uses**: DynamicTenantScheduler for multi-tenant support
+
+**Collective In/Out calls:**
 - **IN**: Tasks from Redis queue (`cache:6379`)
 - **OUT**:
   - PostgreSQL updates (`relational_db:5432`)
@@ -182,7 +224,7 @@ Based on the architecture diagram, here's a brief overview of each service with 
 
 ### **Core Orchestrators:**
 - **API Server**: Main coordinator, calls 6 other services
-- **Background Workers**: Task processor, calls 5 other services
+- **Background Workers**: 8 specialized workers processing different task types, collectively call 5 other services
 
 ### **Data Services (No Outbound Calls):**
 - **PostgreSQL**: Database storage
@@ -206,7 +248,15 @@ User → NGINX → Web Server → API Server → {PostgreSQL, Vespa, Redis, Mode
 
 **Background Processing:**
 ```
-API Server → Redis Queue → Background Workers → {PostgreSQL, Vespa, Model Server, MinIO}
+API Server → Redis Queue → 8 Specialized Workers → {PostgreSQL, Vespa, Model Server, MinIO}
+                          ├─ Primary Worker (system tasks)
+                          ├─ Docfetching Worker (document retrieval)
+                          ├─ Docprocessing Worker (indexing pipeline)
+                          ├─ Light Worker (quick operations)
+                          ├─ Heavy Worker (resource-intensive tasks)
+                          ├─ KG Processing Worker (knowledge graphs)
+                          ├─ Monitoring Worker (system health)
+                          └─ Beat Worker (task scheduling)
 ```
 
 This architecture provides clear separation of concerns with each service having a specific role in the overall system! 🎯
