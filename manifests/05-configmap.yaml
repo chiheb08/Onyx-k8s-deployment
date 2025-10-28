@@ -155,8 +155,8 @@ data:
          # 
          # Used by: API Server, Web Server
          # ============================================================================
-         ENABLE_EMAIL_INVITES: "true"
-         VALID_EMAIL_DOMAINS: "yourcompany.com"
+         ENABLE_EMAIL_INVITES: "false"
+         VALID_EMAIL_DOMAINS: ""
   
   # ============================================================================
   # WEB APPLICATION DOMAIN CONFIGURATION
