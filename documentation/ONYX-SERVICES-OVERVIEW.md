@@ -123,7 +123,9 @@ Based on the architecture diagram, here's a brief overview of each service with 
 
 **In/Out calls:**
 - **IN**: HTTP embedding requests from `api_server:8080`
-- **OUT**: Returns vector embeddings (no external calls)
+- **OUT**: 
+  - Returns vector embeddings to `api_server:8080`
+  - May download models from HuggingFace (if not cached)
 
 ---
 
@@ -136,8 +138,10 @@ Based on the architecture diagram, here's a brief overview of each service with 
 - Handles heavy document processing workloads separately from real-time queries to avoid performance conflicts
 
 **In/Out calls:**
-- **IN**: HTTP embedding requests from `background` workers
-- **OUT**: Returns vector embeddings (no external calls)
+- **IN**: HTTP embedding requests from `background` workers (primarily Docprocessing Worker)
+- **OUT**: 
+  - Returns vector embeddings to `background` workers
+  - May download models from HuggingFace (if not cached)
 
 ---
 
@@ -150,8 +154,11 @@ Based on the architecture diagram, here's a brief overview of each service with 
 - Provides ACID transactions, structured data storage, and relational queries for core application data
 
 **In/Out calls:**
-- **IN**: SQL queries from `api_server` and `background` workers
-- **OUT**: None (data storage service)
+- **IN**: SQL queries from `api_server:8080` and `background` workers
+- **OUT**: 
+  - Query results to `api_server:8080`
+  - Query results to `background` workers
+  - Database notifications/triggers (if configured)
 
 ---
 
@@ -166,8 +173,11 @@ Based on the architecture diagram, here's a brief overview of each service with 
 **In/Out calls:**
 - **IN**: 
   - Search queries from `api_server:8080`
-  - Document indexing from `background` workers
-- **OUT**: None (search engine service)
+  - Document indexing from `background` workers (primarily Docprocessing Worker)
+- **OUT**: 
+  - Search results to `api_server:8080`
+  - Indexing confirmations to `background` workers
+  - Status updates and metrics
 
 ---
 
@@ -182,8 +192,12 @@ Based on the architecture diagram, here's a brief overview of each service with 
 **In/Out calls:**
 - **IN**: 
   - Cache operations from `api_server:8080`
+  - Task submissions from `api_server:8080`
   - Task queue operations from `background` workers
-- **OUT**: None (cache/broker service)
+  - Task results from `background` workers
+- **OUT**: 
+  - Task distribution to `background` workers (all 8 worker types)
+  - Task notifications and coordination messages
 
 ---
 
@@ -197,9 +211,13 @@ Based on the architecture diagram, here's a brief overview of each service with 
 
 **In/Out calls:**
 - **IN**: 
+  - File uploads from `api_server:8080`
+  - File retrievals from `background` workers (Docfetching, Docprocessing)
   - File operations from `api_server:8080`
-  - File operations from `background` workers
-- **OUT**: None (storage service)
+- **OUT**: 
+  - File data to `api_server:8080`
+  - File data to `background` workers
+  - Storage confirmations and metadata
 
 ---
 
@@ -213,7 +231,10 @@ Based on the architecture diagram, here's a brief overview of each service with 
 
 **In/Out calls:**
 - **IN**: HTTP chat completion requests from `api_server:8080`
-- **OUT**: None (inference service, may download models initially)
+- **OUT**: 
+  - Generated responses to `api_server:8080`
+  - Model downloads from HuggingFace (initial setup)
+  - Telemetry/logging (if configured)
 
 ---
 
@@ -226,13 +247,13 @@ Based on the architecture diagram, here's a brief overview of each service with 
 - **API Server**: Main coordinator, calls 6 other services
 - **Background Workers**: 8 specialized workers processing different task types, collectively call 5 other services
 
-### **Data Services (No Outbound Calls):**
-- **PostgreSQL**: Database storage
-- **Vespa**: Vector search
-- **Redis**: Cache/queue
-- **MinIO**: File storage
-- **Model Servers**: AI inference
-- **vLLM**: LLM inference
+### **Data Services (With Response/Coordination Calls):**
+- **PostgreSQL**: Database storage → Returns query results
+- **Vespa**: Vector search → Returns search results and indexing confirmations
+- **Redis**: Cache/queue → Distributes tasks to workers and coordinates
+- **MinIO**: File storage → Returns file data and storage confirmations
+- **Model Servers**: AI inference → Returns embeddings, may download models
+- **vLLM**: LLM inference → Returns generated responses, may download models
 
 ### **Frontend Services:**
 - **Web Server**: UI layer, calls API server only
