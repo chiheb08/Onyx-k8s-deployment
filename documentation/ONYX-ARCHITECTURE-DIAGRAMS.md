@@ -461,3 +461,117 @@ These diagrams show how Onyx provides:
 - **Reliability**: High availability and backup
 
 Onyx is designed to be both powerful and secure, giving you the tools you need to manage documents while keeping your data safe.
+
+---
+
+## 🧭 Simplified Interface Diagram (High-Level Services)
+
+```
+Users (Browser/Mobile/Integrations)
+        |
+        v
++------------------+
+|   NGINX Gateway  |
+|  (TLS, Routing)  |
++--------+---------+
+         |
+  +------+---------------------------+
+  |                                  |
+  v                                  v
++-------------------+        +--------------------+
+|  Web App (UI)     |        |  API (Core Logic)  |
+|  Next.js Frontend |        |  FastAPI Backend   |
++---------+---------+        +---------+----------+
+          |                             |
+          | UI calls                    | Business APIs
+          |                             |
+          v                             v
+      [Session/Auth]                [Background Tasks]
+          |                             |
+          v                             v
++-------------------+        +--------------------+
+|  Redis (Sessions) |        |  Celery Workers    |
++-------------------+        +---------+----------+
+                                      |
+                                      v
+                          +------------------------+
+                          |   Model Services (AI)  |
+                          |  Embeddings/Inference  |
+                          +-----------+------------+
+                                      |
+                                      v
++------------------+   +------------------+   +------------------+
+|  PostgreSQL      |   |  Vespa/pgvector  |   |  Private S3      |
+|  (Metadata)      |   |  (Search Index)  |   |  (Files)         |
++------------------+   +------------------+   +------------------+
+```
+
+---
+
+## 🔄 End-to-End Request Workflows (Simplified)
+
+### 1) Login
+```
+User → NGINX → Web App → API: POST /auth/login
+API → Redis: create session (JWT/session token)
+API → Web App: 200 + session token
+Web App → Next requests include session → NGINX → API: authorized
+```
+
+### 2) Upload File
+```
+User → Web App → API: POST /files/upload (multipart)
+API → Private S3: store encrypted file
+API → PostgreSQL: create file metadata row
+API → Celery: enqueue "process_document" task
+Workers → S3: read file → Model Services: generate embeddings → Vespa/pgvector: index
+API → Web App: 202 Accepted (processing) → UI shows status updates
+```
+
+### 3) Ask a Question (Search + Answer)
+```
+User → Web App → API: POST /search/query { question }
+API → Model Services: get query embedding
+API → Vespa/pgvector: semantic vector search
+API → PostgreSQL: fetch metadata, permissions check
+API → Web App: top results + snippets + sources
+(Optional) API → Model Services: answer synthesis from retrieved docs
+```
+
+### 4) View My Files
+```
+User → Web App → API: GET /user/files
+API → PostgreSQL: filter by user_id (isolation)
+API → Web App: list of files with statuses
+```
+
+### 5) Delete a File
+```
+User → Web App → API: DELETE /user/files/{id}
+API → PostgreSQL: ownership check → delete metadata
+API → S3: delete object
+API → Vespa/pgvector: remove from index
+API → Web App: 200 OK
+```
+
+### 6) Logout
+```
+User → Web App → API: POST /auth/logout
+API → Redis: invalidate session
+API → Web App: 204 No Content
+```
+
+---
+
+## 🧩 What Each Block Does (At a Glance)
+
+- Web App: UI, session handling, calls API securely
+- API: Authentication, authorization, business logic, auditing
+- Redis: Sessions and short-lived caches
+- Celery Workers: Background jobs (ingest, indexing, maintenance)
+- Model Services: Embeddings and LLM-powered tasks
+- PostgreSQL: Users, sessions, metadata, permissions
+- Vespa/pgvector: Vector search for semantic retrieval
+- Private S3: Encrypted document storage under your control
+
+---
