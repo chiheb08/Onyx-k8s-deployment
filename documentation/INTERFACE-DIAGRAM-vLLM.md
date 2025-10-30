@@ -232,40 +232,44 @@ Failure cases:
 
 ---
 
-## Communication Interfaces (Requests, Paths, and Channels)
+## Communication Interfaces (Protocols, Methods, Paths)
+
+Deployment note for restricted environments:
+- External client traffic MUST be `HTTPS` only (TLS 1.2+). NGINX terminates TLS; enable HSTS and disable plain HTTP.
+- Internal service traffic is cluster-internal. If you require encryption-in-transit internally, use mTLS (service mesh) or per-service TLS where supported.
 
 ### External HTTP APIs (via NGINX → API Server)
 
-| Method | Path | Purpose | Auth Required | Upstream/Notes |
-|---|---|---|---|---|
-| POST | `/api/auth/login` | Authenticate user (email/password) | No (credentials provided in body) | Checks `PostgreSQL`, creates session in `Redis`, returns token |
-| POST | `/api/auth/logout` | End session | Yes | Revokes/blacklists session/JWT in `Redis` |
-| GET | `/api/healthz` | Health probe | No | Lightweight status: DB/Redis/connectivity |
-| POST | `/api/chat/model` | Select active model | Yes | Persists preference in `PostgreSQL` |
-| POST | `/api/chat/query` | Submit chat message | Yes | Orchestrates retrieval + generation (pgvector/Vespa + vLLM); persists history |
-| GET | `/api/stream` | Stream chat tokens | Yes | SSE/WebSocket; NGINX uses `Connection: upgrade` only here |
-| POST | `/api/files/upload` | Upload file into a project | Yes | Stores blob in Private S3; metadata in `PostgreSQL`; enqueues indexing |
-| GET | `/api/user/files/recent` | List recent files | Yes | Reads from `PostgreSQL` with tenant scoping |
-| DELETE | `/api/user/projects/file/{fileId}` | Delete user file from project (or hard delete) | Yes | Deletes linkage; may schedule index cleanup and S3 delete |
+| Protocol | Method | Path | Purpose | Auth Required | Upstream/Notes |
+|---|---|---|---|---|---|
+| HTTPS | POST | `/api/auth/login` | Authenticate user (email/password) | No (credentials in body) | Checks `PostgreSQL`, creates session in `Redis`, returns token |
+| HTTPS | POST | `/api/auth/logout` | End session | Yes | Revokes/blacklists session/JWT in `Redis` |
+| HTTPS | GET | `/api/healthz` | Health probe | No | Lightweight status: DB/Redis/connectivity |
+| HTTPS | POST | `/api/chat/model` | Select active model | Yes | Persists preference in `PostgreSQL` |
+| HTTPS | POST | `/api/chat/query` | Submit chat message | Yes | Retrieval (pgvector/Vespa) + generation (vLLM); persists history |
+| HTTPS | GET | `/api/stream` | Stream chat tokens | Yes | SSE/WebSocket; NGINX `Connection: upgrade` only here |
+| HTTPS | POST | `/api/files/upload` | Upload file into a project | Yes | S3 blob; metadata in `PostgreSQL`; enqueues indexing |
+| HTTPS | GET | `/api/user/files/recent` | List recent files | Yes | From `PostgreSQL` with tenant scoping |
+| HTTPS | DELETE | `/api/user/projects/file/{fileId}` | Delete/unlink file | Yes | Removes linkage; index cleanup; S3 delete if hard delete |
 
 Note: Exact paths may vary slightly per Onyx version; these are the standard stable shapes used in this deployment.
 
 ### Internal Service Calls (service-to-service)
 
-| Caller | Callee | Interface | Purpose |
+| Caller | Callee | Protocol | Purpose |
 |---|---|---|---|
-| API Server | Redis | Redis protocol | Session storage, token revocation, Celery broker |
-| API Server | PostgreSQL | SQL | Users, orgs, chat history, file metadata, pgvector index (if used) |
-| API Server | Vespa | HTTP | Vector+keyword retrieval when Vespa is enabled |
-| API Server | Embeddings Server | HTTP | Generate embeddings for queries/chunks |
-| API Server | vLLM | HTTP | Text generation (chat completion), supports streaming |
-| API Server | Private S3 | S3 API | Store/retrieve user file blobs |
-| Celery Workers | Redis | Redis protocol | Job queue (enqueue/dequeue, statuses) |
-| Celery Workers | Embeddings Server | HTTP | Chunk embeddings during indexing |
-| Celery Workers | pgvector/Vespa | SQL/HTTP | Index vectors and metadata |
-| Celery Workers | Private S3 | S3 API | Fetch file content for processing |
+| API Server | Redis | redis (or rediss for TLS) | Session storage, token revocation, Celery broker |
+| API Server | PostgreSQL | postgres (TLS if enabled) | Users, orgs, chat history, metadata; pgvector index |
+| API Server | Vespa | HTTP (or HTTPS) | Vector/keyword retrieval when Vespa is enabled |
+| API Server | Embeddings Server | HTTP (or HTTPS) | Generate embeddings for queries/chunks |
+| API Server | vLLM | HTTP (or HTTPS) | Text generation; supports streaming |
+| API Server | Private S3 | S3 (HTTPS) | Store/retrieve user file blobs |
+| Celery Workers | Redis | redis (or rediss) | Job queue (enqueue/dequeue, statuses) |
+| Celery Workers | Embeddings Server | HTTP (or HTTPS) | Chunk embeddings during indexing |
+| Celery Workers | pgvector/Vespa | postgres/HTTP(S) | Index vectors and metadata |
+| Celery Workers | Private S3 | S3 (HTTPS) | Fetch file content for processing |
 
 Security summary:
-- All external traffic terminates TLS at NGINX; services communicate over cluster-internal networks.
+- All external traffic terminates TLS at NGINX; services communicate over cluster-internal networks. For restricted environments, disable plain HTTP listeners and enforce TLS everywhere.
 - Authorization enforced at API on every request; tenant scoping applied to all DB/index queries.
 - Credentials and keys (JWT signing, pepper) stored in secrets, not in code or DB.
