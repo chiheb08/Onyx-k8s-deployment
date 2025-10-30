@@ -181,3 +181,51 @@ Failure cases:
 - Correlation IDs: each request logs an ID tying UI, API, and worker logs.
 - Metrics: request latency, vLLM/token throughput, retrieval hit rates, indexing backlog.
 - Alerts: timeouts to vLLM, Redis/DB connectivity, indexing failures, auth anomalies.
+
+---
+
+## Credential Hashing: Why and How (Technical)
+
+### Why hash credentials?
+- Storing raw passwords is unacceptable: a DB leak would immediately compromise every account.
+- Hashing turns a password into a one-way, irreversible digest. Even if the DB is leaked, attackers cannot easily recover the original password.
+- Salts ensure identical passwords produce different hashes and defeat rainbow tables.
+
+### Recommended algorithms
+- Prefer memory-hard algorithms designed for passwords: `argon2id` (preferred) or `bcrypt` with a strong cost factor.
+- Avoid fast general-purpose hashes (SHA-2, SHA-3) for passwords; they are too fast to brute force.
+
+### How it works in the API
+1. Registration/Password change:
+   - API generates a unique random salt per user.
+   - Derives a hash using `argon2id` (or `bcrypt`) with configured parameters (memory/cost, time, parallelism).
+   - Stores only: `algorithm`, `parameters`, `salt`, and `password_hash` in `PostgreSQL`.
+   - Never stores raw passwords or reversible encryption keys.
+2. Login:
+   - API fetches the user’s salt and hashing parameters from `PostgreSQL`.
+   - Recomputes the hash over the submitted password.
+   - Compares using constant-time comparison to avoid timing attacks.
+   - On success, issues a session/JWT and stores session state in `Redis`.
+
+### Parameters and security knobs
+- Argon2id: tune `memory_cost`, `time_cost`, and `parallelism` to slow attackers while staying acceptable for user latency.
+- Bcrypt: tune `cost` (work factor). Typical values: 12–14 in production depending on CPU.
+- Pepper (optional): a server-side secret added before hashing; stored outside the DB (e.g., in a secrets manager). Increases defense if DB is compromised but app server secrets are not.
+
+### Operational guidance
+- Enforce password policies: minimum length, block common/breached passwords, throttle login attempts.
+- Rate limiting and exponential backoff on login endpoints reduce online brute-force.
+- MFA can be added on top of hashing for high-assurance accounts.
+- Use TLS everywhere (NGINX) so credentials are never sent in cleartext.
+- Rotation and migration: support hash upgrades (e.g., bcrypt→argon2id) by rehashing on next successful login when parameters are outdated.
+- Audit and logging: never log raw passwords; log only authentication outcomes and reasons (redacted).
+
+### Where data lives
+- `PostgreSQL`: stores user records, per-user salt, hashing params, and password hash.
+- `Redis`: stores session state/blacklist; never stores raw passwords.
+- `Secrets Manager` (or Kubernetes secrets): stores pepper and signing keys for JWT.
+
+### Common pitfalls to avoid
+- Using a single global salt for all users (must be per-user unique salts).
+- Hashing with bare SHA-256/512 without KDF parameters.
+- Storing or logging plaintext passwords anywhere.
