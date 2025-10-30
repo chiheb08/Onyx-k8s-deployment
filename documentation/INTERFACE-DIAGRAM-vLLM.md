@@ -103,3 +103,81 @@ Notes:
 - Retrieval uses embeddings from the Embeddings Inference Server and vector search via pgvector or Vespa.
 - Generation is performed by vLLM (replacing Ollama). The UI receives streamed tokens and renders progressively.
 - Optional: file uploads go to Private S3 and are indexed asynchronously by workers into pgvector/Vespa.
+
+---
+
+## End-to-End Request Details (What happens for each action)
+
+### 1) Login request
+1. Browser submits POST `/api/auth/login` with email/password.
+2. NGINX forwards to the API Server.
+3. API Server steps:
+   - Hashes and verifies credentials against `PostgreSQL` users table.
+   - If valid: creates a session record and/or JWT, stores session in `Redis` (TTL), returns 200 with token and profile payload.
+   - If invalid: returns 401/403 with error message and no token; rate limits may apply.
+4. Browser stores token securely and switches UI to the chat screen.
+
+### 2) Session validation (every request)
+1. Browser attaches `Authorization: Bearer <token>` to all subsequent API calls.
+2. API Server validates token signature and expiration, and checks `Redis` for session state (e.g., revoked, expired, tenant).
+3. If invalid/expired: 401 returned; UI redirects to Login.
+
+### 3) Select model
+1. Browser calls `POST /api/chat/model` with selected model ID.
+2. API validates the model is allowed for the user/org, persists preference in `PostgreSQL` (user settings or session-scoped), responds 200.
+3. UI reflects the active model; subsequent generations target this model on `vLLM`.
+
+### 4) Send chat message (query)
+1. Browser sends `POST /api/chat/query` with message text and optional context (selected files/projects).
+2. API flow:
+   - Authorization: verify user/org membership and project access via `PostgreSQL`.
+   - Embeddings: call Embeddings Inference Server to embed the question.
+   - Retrieval: execute vector search in `pgvector` (PostgreSQL) or `Vespa` to fetch top-k passages; apply tenant/project filters.
+   - Prompt assembly: construct system/user prompts with citations and context.
+   - Generation: call `vLLM` with assembled prompt; prefer streaming.
+3. Streaming: API streams tokens back to the browser (SSE/WebSocket), NGINX routes `/api/stream` with `Connection: upgrade` only for stream endpoints.
+4. UI renders tokens progressively; on complete, message is committed to `PostgreSQL` (chat history) along with references to sources.
+
+Failure cases:
+- Missing/invalid session → 401.
+- Retrieval empty → API still calls `vLLM` with fallback instructions (answer from general knowledge or ask for clarification), and marks low-confidence.
+- `vLLM` timeout → API returns 504/500 with a user-friendly retry message.
+
+### 5) Upload file (optional context)
+1. Browser sends `POST /api/files/upload` (multipart) with file and project.
+2. API validates size/type; stores blob in `Private S3` (encrypted-at-rest), creates file metadata in `PostgreSQL`.
+3. API enqueues indexing via `Celery` (broker: `Redis`).
+4. Workers perform: fetch → chunk → embed (Embeddings Server) → index (pgvector/Vespa).
+5. When done, index reflects new content; subsequent retrievals can surface these snippets.
+
+Failure cases:
+- Exceeds NGINX `client_max_body_size` → 413; UI prompts to adjust or compress.
+- Unsupported type → 400 with guidance; no job queued.
+
+### 6) List recent files
+1. Browser calls `GET /api/user/files/recent`.
+2. API checks user/org and returns file metadata from `PostgreSQL` (with project scoping).
+
+### 7) Delete/unlink file
+1. Browser calls either `DELETE /api/user/projects/file/{fileId}` (hard delete for user files) or an unlink endpoint (detach from project).
+2. API checks ownership/role and either:
+   - Deletes metadata and schedules index cleanup, or
+   - Removes linkage from project only.
+3. Index cleanup job removes vectors from pgvector/Vespa; S3 object may be deleted if it’s a full delete.
+
+### 8) Logout
+1. Browser calls `POST /api/auth/logout`.
+2. API marks session/JWT as revoked/expired in `Redis` and returns 200.
+3. UI clears local token and redirects to Login.
+
+### 9) Health checks and liveness
+- NGINX/Platform periodically probes web and API endpoints.
+- API exposes `/healthz` and dependency checks (PostgreSQL, Redis, vLLM reachable, embeddings reachable).
+
+---
+
+## Error Handling and Observability
+- Structured errors: consistent JSON with `code`, `message`, optional `hint`.
+- Correlation IDs: each request logs an ID tying UI, API, and worker logs.
+- Metrics: request latency, vLLM/token throughput, retrieval hit rates, indexing backlog.
+- Alerts: timeouts to vLLM, Redis/DB connectivity, indexing failures, auth anomalies.
