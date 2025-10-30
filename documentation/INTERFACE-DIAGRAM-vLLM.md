@@ -17,15 +17,15 @@ flowchart LR
     SelectModel[Select Model]
     Logout[Logout]
     subgraph UI[Chat UI]
-      ChatBox["Chat box\n(assistant/user)"]
+      ChatBox["Chat box<br/>assistant & user"]
       Input["Enter your query..."]
       SubmitBtn[Submit]
     end
   end
 
   subgraph Creds[User Credentials]
-    ENV["Store (PostgreSQL)\nusers, roles, orgs"]
-    HASH["Credential hashing & validation\n(FastAPI)"]
+    ENV["Store (PostgreSQL)<br/>users, roles, orgs"]
+    HASH["Credential hashing & validation<br/>FastAPI"]
   end
 
   subgraph Models[Storage: Large Language Models]
@@ -41,8 +41,8 @@ flowchart LR
   subgraph Chatbot[Chatbot System]
     Logic[Chatbot Logic]
     Retrieval[Retrieval: embed + search]
-    Generate[Generate Response (vLLM)]
-    Process[Process Response]
+    Generate[Generate Response - vLLM]
+    PostProcess[Process Response]
   end
 
   %% External infra boxes
@@ -81,12 +81,12 @@ flowchart LR
   ServeVLLM --> RunVLLM
   RunVLLM -->|tokens| Generate
   Generate --> Process
-  Process -- Chat Response --> ChatBox
+  PostProcess -- Chat Response --> ChatBox
   ChatBox -. Display Response .- UI
 
   %% Persistence and sessions
   Logic --> PG
-  Process --> PG
+  PostProcess --> PG
   ENV --> PG
   UI -->|session| Redis
 
