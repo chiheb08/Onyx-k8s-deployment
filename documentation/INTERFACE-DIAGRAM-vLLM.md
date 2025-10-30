@@ -229,3 +229,43 @@ Failure cases:
 - Using a single global salt for all users (must be per-user unique salts).
 - Hashing with bare SHA-256/512 without KDF parameters.
 - Storing or logging plaintext passwords anywhere.
+
+---
+
+## Communication Interfaces (Requests, Paths, and Channels)
+
+### External HTTP APIs (via NGINX → API Server)
+
+| Method | Path | Purpose | Auth Required | Upstream/Notes |
+|---|---|---|---|---|
+| POST | `/api/auth/login` | Authenticate user (email/password) | No (credentials provided in body) | Checks `PostgreSQL`, creates session in `Redis`, returns token |
+| POST | `/api/auth/logout` | End session | Yes | Revokes/blacklists session/JWT in `Redis` |
+| GET | `/api/healthz` | Health probe | No | Lightweight status: DB/Redis/connectivity |
+| POST | `/api/chat/model` | Select active model | Yes | Persists preference in `PostgreSQL` |
+| POST | `/api/chat/query` | Submit chat message | Yes | Orchestrates retrieval + generation (pgvector/Vespa + vLLM); persists history |
+| GET | `/api/stream` | Stream chat tokens | Yes | SSE/WebSocket; NGINX uses `Connection: upgrade` only here |
+| POST | `/api/files/upload` | Upload file into a project | Yes | Stores blob in Private S3; metadata in `PostgreSQL`; enqueues indexing |
+| GET | `/api/user/files/recent` | List recent files | Yes | Reads from `PostgreSQL` with tenant scoping |
+| DELETE | `/api/user/projects/file/{fileId}` | Delete user file from project (or hard delete) | Yes | Deletes linkage; may schedule index cleanup and S3 delete |
+
+Note: Exact paths may vary slightly per Onyx version; these are the standard stable shapes used in this deployment.
+
+### Internal Service Calls (service-to-service)
+
+| Caller | Callee | Interface | Purpose |
+|---|---|---|---|
+| API Server | Redis | Redis protocol | Session storage, token revocation, Celery broker |
+| API Server | PostgreSQL | SQL | Users, orgs, chat history, file metadata, pgvector index (if used) |
+| API Server | Vespa | HTTP | Vector+keyword retrieval when Vespa is enabled |
+| API Server | Embeddings Server | HTTP | Generate embeddings for queries/chunks |
+| API Server | vLLM | HTTP | Text generation (chat completion), supports streaming |
+| API Server | Private S3 | S3 API | Store/retrieve user file blobs |
+| Celery Workers | Redis | Redis protocol | Job queue (enqueue/dequeue, statuses) |
+| Celery Workers | Embeddings Server | HTTP | Chunk embeddings during indexing |
+| Celery Workers | pgvector/Vespa | SQL/HTTP | Index vectors and metadata |
+| Celery Workers | Private S3 | S3 API | Fetch file content for processing |
+
+Security summary:
+- All external traffic terminates TLS at NGINX; services communicate over cluster-internal networks.
+- Authorization enforced at API on every request; tenant scoping applied to all DB/index queries.
+- Credentials and keys (JWT signing, pepper) stored in secrets, not in code or DB.
