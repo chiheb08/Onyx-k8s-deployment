@@ -1,112 +1,189 @@
-# Onyx Sessions Architecture - Complete Visual Diagram
+# Onyx Sessions Architecture - Simple Visual Diagram
 
-## 🎯 Complete Session Flow Diagram
+## 🎯 Simple Architecture Overview
 
-This diagram shows the complete end-to-end flow of how sessions work in Onyx, including all components and security layers.
+This diagram shows the clean architecture of how sessions work in Onyx, with all key components and their relationships.
+
+```mermaid
+graph LR
+    %% User
+    User[👤 User Browser<br/>Stores JWT Token]
+    
+    %% Gateway
+    NGINX[🔐 NGINX Gateway<br/>Routes Requests]
+    
+    %% API Server
+    API[⚙️ API Server<br/>Validates & Processes]
+    
+    %% Cache
+    Redis[💾 Redis Cache<br/>JWT Tokens & Sessions<br/>TTL: 24h]
+    
+    %% Database
+    DB[(🗄️ PostgreSQL<br/>Users, Sessions, Messages<br/>RLS Policies)]
+    
+    %% Flow
+    User -->|1. Login Request| NGINX
+    NGINX -->|2. Forward| API
+    API -->|3. Validate| DB
+    API -->|4. Generate Token| Redis
+    Redis -->|5. Return Token| API
+    API -->|6. Return Token| NGINX
+    NGINX -->|7. Set Cookie| User
+    
+    User -->|8. API Request<br/>with JWT| NGINX
+    NGINX -->|9. Extract Token| API
+    API -->|10. Validate Token| Redis
+    Redis -->|11. Return user_id| API
+    API -->|12. Query Data| DB
+    DB -->|13. Filtered Results| API
+    API -->|14. Response| NGINX
+    NGINX -->|15. Return Data| User
+    
+    %% Styling
+    classDef userClass fill:#e1f5ff,stroke:#01579b,stroke-width:3px
+    classDef gatewayClass fill:#fff3e0,stroke:#e65100,stroke-width:3px
+    classDef apiClass fill:#f3e5f5,stroke:#4a148c,stroke-width:3px
+    classDef cacheClass fill:#ffebee,stroke:#b71c1c,stroke-width:3px
+    classDef dbClass fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px
+    
+    class User userClass
+    class NGINX gatewayClass
+    class API apiClass
+    class Redis cacheClass
+    class DB dbClass
+```
+
+---
+
+## 📊 Component Architecture
 
 ```mermaid
 graph TB
-    %% User Layer
-    subgraph User["👤 USER BROWSER"]
-        U1["User Login - Email + Password"]
-        U2["Store JWT Token - HTTP-only Cookie"]
-        U3["Send API Request - With JWT Token"]
-        U4["Create Chat Session - POST /api/chat/session"]
-        U5["Send Message - POST /api/chat/message"]
+    subgraph Client["👤 CLIENT LAYER"]
+        Browser[User Browser<br/>JWT Token Storage]
     end
-
-    %% Gateway Layer
-    subgraph Gateway["🔐 NGINX GATEWAY"]
-        N1[Receive Request]
-        N2["Extract JWT Token - From Cookie/Header"]
-        N3[Route to API Server]
+    
+    subgraph Gateway["🔐 GATEWAY LAYER"]
+        NGINX[NGINX<br/>Request Routing<br/>Token Extraction]
     end
-
-    %% API Server Layer
-    subgraph API["⚙️ API SERVER (FastAPI)"]
-        A1["Validate JWT Token - Signature + Expiration"]
-        A2["Extract user_id - from Token Claims"]
-        A3["Set current_user Context - Tenant-aware"]
-        A4["Check Ownership - Verify user_id"]
-        A5[Process Request]
-        A6[Return Response]
+    
+    subgraph Application["⚙️ APPLICATION LAYER"]
+        APIServer[API Server FastAPI<br/>Token Validation<br/>User Context<br/>Data Processing]
     end
-
-    %% Cache Layer
-    subgraph Redis["💾 REDIS CACHE"]
-        R1["auth:session:token - TTL: 24h - user_id, tenant_id"]
-        R2["session:session_id - TTL: 1h - user_id, last_accessed"]
-        R3["Tenant-aware Keys - Namespace Isolation"]
+    
+    subgraph Cache["💾 CACHE LAYER"]
+        RedisCache[Redis Cache<br/>JWT Tokens<br/>Active Sessions<br/>TTL Management]
     end
-
-    %% Database Layer
-    subgraph PostgreSQL["🗄️ POSTGRESQL DATABASE"]
-        P1["user Table - id, email, password_hash, role, preferences"]
-        P2["chat_session Table - id, user_id FK, description, time_created"]
-        P3["chat_message Table - id, chat_session_id FK, message, message_type"]
-        P4["Row-Level Security - RLS Policies"]
+    
+    subgraph Database["🗄️ DATABASE LAYER"]
+        PostgreSQL[(PostgreSQL<br/>Users Table<br/>Chat Sessions<br/>Messages<br/>RLS Policies)]
     end
-
-    %% Authentication Flow
-    U1 -->|1. POST /api/auth/login| N1
-    N1 -->|2. Extract credentials| N2
-    N2 -->|3. Forward to API| A1
-    A1 -->|4. Validate credentials| P1
-    P1 -->|5. Check password hash| A2
-    A2 -->|6. Generate JWT Token| R1
-    R1 -->|7. Store in Redis - auth:session:token| A3
-    A3 -->|8. Return token to client| N3
-    N3 -->|9. Set HTTP-only cookie| U2
-
-    %% Session Creation Flow
-    U4 -->|10. POST /api/chat/session - JWT in header| N1
-    N1 -->|11. Extract token| N2
-    N2 -->|12. Validate token| A1
-    A1 -->|13. Check Redis cache| R1
-    R1 -->|14. Token valid| A2
-    A2 -->|15. Extract user_id| A3
-    A3 -->|16. Create session record| P2
-    P2 -->|17. user_id FK constraint| A4
-    A4 -->|18. RLS policy check| P4
-    P4 -->|19. Access granted| A5
-    A5 -->|20. Return session_id| A6
-    A6 -->|21. Cache session| R2
-    R2 -->|22. Return to client| U2
-
-    %% Message Flow
-    U5 -->|23. POST /api/chat/message - JWT + session_id| N1
-    N1 -->|24. Extract token| N2
-    N2 -->|25. Validate token| A1
-    A1 -->|26. Check Redis| R1
-    R1 -->|27. Token valid| A2
-    A2 -->|28. Extract user_id| A3
-    A3 -->|29. Verify session ownership| P2
-    P2 -->|30. Check user_id matches| A4
-    A4 -->|31. RLS policy enforcement| P4
-    P4 -->|32. Access granted| A5
-    A5 -->|33. Create message record| P3
-    P3 -->|34. chat_session_id FK| A6
-    A6 -->|35. Return message| U2
-
-    %% Data Isolation Mechanisms
-    P4 -.->|RLS Policy: user_id = current_user_id| P2
-    P4 -.->|RLS Policy: session belongs to user| P3
-    R3 -.->|Tenant Isolation: tenant_id in key| R1
-    A3 -.->|Tenant Context: Set from token| P1
-
+    
+    Browser -->|HTTP Requests<br/>with JWT| NGINX
+    NGINX -->|Forward Request| APIServer
+    APIServer <-->|Validate Token<br/>Store Sessions| RedisCache
+    APIServer <-->|Query Data<br/>Filter by user_id| PostgreSQL
+    
     %% Styling
-    classDef userClass fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef clientClass fill:#e1f5ff,stroke:#01579b,stroke-width:2px
     classDef gatewayClass fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef apiClass fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef appClass fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
     classDef cacheClass fill:#ffebee,stroke:#b71c1c,stroke-width:2px
     classDef dbClass fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-
-    class U1,U2,U3,U4,U5 userClass
-    class N1,N2,N3 gatewayClass
-    class A1,A2,A3,A4,A5,A6 apiClass
-    class R1,R2,R3 cacheClass
-    class P1,P2,P3,P4 dbClass
+    
+    class Browser clientClass
+    class NGINX gatewayClass
+    class APIServer appClass
+    class RedisCache cacheClass
+    class PostgreSQL dbClass
 ```
+
+---
+
+## 🔄 Simple Flow Explanation
+
+### **Login Flow (Steps 1-7):**
+1. User sends login credentials
+2. NGINX routes to API Server
+3. API validates credentials against PostgreSQL
+4. API generates JWT token
+5. Token stored in Redis (24h TTL)
+6. Token returned to user
+7. Browser stores token in HTTP-only cookie
+
+### **Data Access Flow (Steps 8-15):**
+8. User sends API request with JWT token
+9. NGINX extracts token from request
+10. API validates token in Redis
+11. Redis returns user_id and tenant_id
+12. API queries PostgreSQL with user_id filter
+13. Database returns only user's data (RLS enforced)
+14. API returns filtered results
+15. User receives their data
+
+---
+
+## 🔐 Security Layers
+
+```mermaid
+graph TD
+    Layer1[🔐 Layer 1: JWT Authentication<br/>Token Validation<br/>Signature Check]
+    Layer2[🔒 Layer 2: Authorization<br/>Ownership Verification<br/>User ID Check]
+    Layer3[🛡️ Layer 3: Database RLS<br/>Row-Level Security<br/>Foreign Key Constraints]
+    Layer4[🔑 Layer 4: Cache Isolation<br/>Tenant-Aware Keys<br/>TTL Expiration]
+    
+    Layer1 --> Layer2
+    Layer2 --> Layer3
+    Layer3 --> Layer4
+    
+    classDef layerClass fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    class Layer1,Layer2,Layer3,Layer4 layerClass
+```
+
+---
+
+## 📋 Key Components
+
+### **👤 User Browser**
+- Stores JWT token in HTTP-only cookie
+- Sends token with every API request
+- Manages client-side session state
+
+### **🔐 NGINX Gateway**
+- Routes all incoming requests
+- Extracts JWT tokens from cookies/headers
+- Load balances across API servers
+- SSL/TLS termination
+
+### **⚙️ API Server (FastAPI)**
+- Validates JWT token signature and expiration
+- Extracts user_id and tenant_id from token
+- Sets current_user context for request
+- Verifies user ownership of data
+- Processes business logic
+- Filters responses by user_id
+
+### **💾 Redis Cache**
+- Stores JWT tokens: `auth:session:{token}` (TTL: 24h)
+- Stores active sessions: `session:{session_id}` (TTL: 1h)
+- Tenant-aware key namespacing
+- Fast sub-second lookups
+
+### **🗄️ PostgreSQL Database**
+- **user table**: User accounts and credentials
+- **chat_session table**: Chat conversations (linked to user_id)
+- **chat_message table**: Individual messages (linked to session_id)
+- **Row-Level Security (RLS)**: Policies enforce user isolation
+- **Foreign Keys**: All tables link to user_id for data integrity
+
+---
+
+## ✅ Data Isolation Guarantees
+
+1. **User Isolation**: Every record has `user_id` foreign key → Users can only see their own data
+2. **Tenant Isolation**: `tenant_id` in JWT token → Organizations completely separated
+3. **Session Isolation**: Sessions belong to one user → No cross-user access
+4. **Database RLS**: Policies enforce isolation at database level → Even SQL bypasses blocked
 
 ---
 
