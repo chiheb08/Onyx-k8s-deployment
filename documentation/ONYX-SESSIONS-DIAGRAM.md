@@ -238,3 +238,19 @@
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 
 This comprehensive diagram shows the complete Onyx sessions architecture, including data flow, security layers, performance optimization, and monitoring systems.
+
+---
+
+## 🎨 Visual Flow Diagram
+
+For a complete visual representation of the session flow with all components and step-by-step processes, see:
+**[ONYX-SESSIONS-ARCHITECTURE-VISUAL.md](./ONYX-SESSIONS-ARCHITECTURE-VISUAL.md)**
+
+This visual diagram includes:
+- ✅ Complete authentication flow (login → token generation → storage)
+- ✅ Session creation flow (request → validation → database → cache)
+- ✅ Message flow (request → ownership check → storage → response)
+- ✅ All components (Browser, NGINX, API Server, Redis, PostgreSQL)
+- ✅ Security layers (JWT validation, RLS policies, tenant isolation)
+- ✅ Data isolation mechanisms (foreign keys, RLS, cache isolation)
+- ✅ Clear step-by-step numbering (35 steps total)
