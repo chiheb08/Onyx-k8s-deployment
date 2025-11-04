@@ -499,3 +499,15 @@ If you can see someone else's data, this is a serious security issue:
 - **Keep your data organized** - using projects and folders
 
 This architecture ensures that your data is completely isolated, secure, and accessible only to you, while providing a seamless user experience across all your devices and sessions.
+
+---
+
+## 📋 **Technical Summary & Step-by-Step Explanation**
+
+### **For Non-Technical Users:**
+
+**Sessions in Onyx work like a secure personal vault system:** When you log in, the system creates a unique digital key (JWT token) that identifies you, stores it temporarily in fast memory (Redis cache) for quick access, and uses it to ensure every piece of data you create or view is automatically tagged with your user ID and stored in the database (PostgreSQL) with permanent isolation. Each time you send a message, upload a file, or create a chat, the system follows a strict security process: it validates your identity token, checks that you own the data you're accessing, creates database records linked to your user ID, and stores temporary session information in cache for fast retrieval, ensuring complete data separation between users at multiple layers (database queries filter by user_id, API endpoints validate ownership, and Redis cache stores sessions with tenant isolation).
+
+### **For Technical Users:**
+
+**Sessions in Onyx implement a multi-layered authentication and authorization architecture:** The system uses JWT tokens (stored in Redis with TTL expiration) for authentication, PostgreSQL with Row-Level Security (RLS) and user_id foreign keys for data persistence and isolation, and Redis cache for session state management with tenant-based key namespacing. The technical flow follows this sequence: (1) User authenticates → FastAPI validates credentials against PostgreSQL user table → JWT token generated with user_id and tenant_id claims → Token stored in Redis with key pattern `auth:session:{token_hash}` and TTL of 24 hours → Token returned to client as HTTP-only cookie or Authorization header; (2) User makes API request → NGINX extracts token → FastAPI middleware validates token signature and expiration → Extracts user_id from token claims → Sets current_user context; (3) Data operations → All database queries automatically filter by user_id (via SQLAlchemy session scoping) → PostgreSQL RLS policies enforce additional isolation → API endpoints verify ownership before returning data → Results cached in Redis with tenant-scoped keys; (4) Session management → Chat sessions stored in `chat_session` table with `user_id` foreign key → Messages linked via `chat_session_id` → Active sessions cached in Redis with pattern `session:{session_id}` for sub-second retrieval → Session expiration handled by Redis TTL and background cleanup jobs → All operations are transactional and ACID-compliant for data integrity.
