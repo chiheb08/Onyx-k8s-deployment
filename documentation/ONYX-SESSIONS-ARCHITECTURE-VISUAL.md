@@ -8,43 +8,43 @@ This diagram shows the complete end-to-end flow of how sessions work in Onyx, in
 graph TB
     %% User Layer
     subgraph User["👤 USER BROWSER"]
-        U1[User Login<br/>Email + Password]
-        U2[Store JWT Token<br/>HTTP-only Cookie]
-        U3[Send API Request<br/>With JWT Token]
-        U4[Create Chat Session<br/>POST /api/chat/session]
-        U5[Send Message<br/>POST /api/chat/message]
+        U1["User Login - Email + Password"]
+        U2["Store JWT Token - HTTP-only Cookie"]
+        U3["Send API Request - With JWT Token"]
+        U4["Create Chat Session - POST /api/chat/session"]
+        U5["Send Message - POST /api/chat/message"]
     end
 
     %% Gateway Layer
     subgraph Gateway["🔐 NGINX GATEWAY"]
         N1[Receive Request]
-        N2[Extract JWT Token<br/>From Cookie/Header]
+        N2["Extract JWT Token - From Cookie/Header"]
         N3[Route to API Server]
     end
 
     %% API Server Layer
     subgraph API["⚙️ API SERVER (FastAPI)"]
-        A1[Validate JWT Token<br/>Signature + Expiration]
-        A2[Extract user_id<br/>from Token Claims]
-        A3[Set current_user Context<br/>Tenant-aware]
-        A4[Check Ownership<br/>Verify user_id]
+        A1["Validate JWT Token - Signature + Expiration"]
+        A2["Extract user_id - from Token Claims"]
+        A3["Set current_user Context - Tenant-aware"]
+        A4["Check Ownership - Verify user_id"]
         A5[Process Request]
         A6[Return Response]
     end
 
     %% Cache Layer
     subgraph Redis["💾 REDIS CACHE"]
-        R1["auth:session:{token}<br/>TTL: 24h<br/>{user_id, tenant_id}"]
-        R2["session:{session_id}<br/>TTL: 1h<br/>{user_id, last_accessed}"]
-        R3[Tenant-aware Keys<br/>Namespace Isolation]
+        R1["auth:session:token - TTL: 24h - user_id, tenant_id"]
+        R2["session:session_id - TTL: 1h - user_id, last_accessed"]
+        R3["Tenant-aware Keys - Namespace Isolation"]
     end
 
     %% Database Layer
     subgraph PostgreSQL["🗄️ POSTGRESQL DATABASE"]
-        P1["user Table<br/>id, email, password_hash<br/>role, preferences"]
-        P2["chat_session Table<br/>id, user_id (FK)<br/>description, time_created"]
-        P3["chat_message Table<br/>id, chat_session_id (FK)<br/>message, message_type"]
-        P4[Row-Level Security<br/>RLS Policies]
+        P1["user Table - id, email, password_hash, role, preferences"]
+        P2["chat_session Table - id, user_id FK, description, time_created"]
+        P3["chat_message Table - id, chat_session_id FK, message, message_type"]
+        P4["Row-Level Security - RLS Policies"]
     end
 
     %% Authentication Flow
@@ -54,12 +54,12 @@ graph TB
     A1 -->|4. Validate credentials| P1
     P1 -->|5. Check password hash| A2
     A2 -->|6. Generate JWT Token| R1
-    R1 -->|7. Store in Redis<br/>auth:session:{token}| A3
+    R1 -->|7. Store in Redis - auth:session:token| A3
     A3 -->|8. Return token to client| N3
     N3 -->|9. Set HTTP-only cookie| U2
 
     %% Session Creation Flow
-    U4 -->|10. POST /api/chat/session<br/>JWT in header| N1
+    U4 -->|10. POST /api/chat/session - JWT in header| N1
     N1 -->|11. Extract token| N2
     N2 -->|12. Validate token| A1
     A1 -->|13. Check Redis cache| R1
@@ -74,7 +74,7 @@ graph TB
     R2 -->|22. Return to client| U2
 
     %% Message Flow
-    U5 -->|23. POST /api/chat/message<br/>JWT + session_id| N1
+    U5 -->|23. POST /api/chat/message - JWT + session_id| N1
     N1 -->|24. Extract token| N2
     N2 -->|25. Validate token| A1
     A1 -->|26. Check Redis| R1
@@ -89,10 +89,10 @@ graph TB
     A6 -->|35. Return message| U2
 
     %% Data Isolation Mechanisms
-    P4 -.->|RLS Policy:<br/>user_id = current_user_id| P2
-    P4 -.->|RLS Policy:<br/>session belongs to user| P3
-    R3 -.->|Tenant Isolation:<br/>tenant_id in key| R1
-    A3 -.->|Tenant Context:<br/>Set from token| P1
+    P4 -.->|RLS Policy: user_id = current_user_id| P2
+    P4 -.->|RLS Policy: session belongs to user| P3
+    R3 -.->|Tenant Isolation: tenant_id in key| R1
+    A3 -.->|Tenant Context: Set from token| P1
 
     %% Styling
     classDef userClass fill:#e1f5ff,stroke:#01579b,stroke-width:2px
