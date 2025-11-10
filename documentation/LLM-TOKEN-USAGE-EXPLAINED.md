@@ -1,5 +1,23 @@
 # LLM Tokens in Onyx – Concepts, Effects, and Examples
 
+## 🧠 LLM Tokens (Super Simple)
+
+- **Token = tiny piece of text** (roughly 3–4 characters). Models read & write tokens.
+- **Context window = prompt + answer.** A 4K model can handle ~4,096 tokens in total.
+- **More tokens ⇒ more time & cost.** Providers charge per 1K tokens and latency rises with token count.
+
+### Quick Examples
+
+| Situation | Prompt Tokens | Answer Tokens | What you’ll notice |
+|-----------|---------------|---------------|--------------------|
+| Ask “What is Onyx?” | ~12 | ~80 | Instant reply, negligible cost. |
+| Paste 800-word email → “Summarize it.” | ~1,200 | ~200 | Fits easily in a 4K model; answer arrives in a few seconds. |
+| Paste 6K-token report → “Write a 1K-token brief.” | ~6,000 | ~1,000 | Needs an 8K+ model; Onyx trims/summarizes if only 4K available; slower and pricier. |
+
+**Tip:** keep prompts focused and attach only the documents you need. Fewer tokens = faster answers + lower bills.
+
+---
+
 ## 🎯 What is a Token?
 
 A *token* is the smallest unit of text that a Large Language Model (LLM) processes. Tokens usually represent short fragments – from single characters to entire words – depending on the language and tokenizer. Onyx interacts with LLMs (vLLM, OpenAI-compatible, Bedrock, etc.) using token counts for prompt construction, budgeting, and cost tracking.
