@@ -215,6 +215,52 @@ Wrap the icon button with a tooltip to explain why it’s disabled:
 </TooltipProvider>
 ```
 
+Place this wrapper in the same spot as the `IconButton` block shown above. For clarity, here’s the before/after comparison of the outer structure:
+
+```tsx
+--- old -------------------------------------------------
+<IconButton
+  id="onyx-chat-input-send-button"
+  icon={chatState === "input" ? SvgArrowUp : SvgStop}
+  disabled={chatState === "input" && !message}
+  onClick={() => {
+    if (chatState === "streaming") {
+      stopGenerating();
+    } else if (message) {
+      onSubmit();
+    }
+  }}
+/>
+
+--- new -------------------------------------------------
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <IconButton
+        id="onyx-chat-input-send-button"
+        icon={chatState === "input" ? SvgArrowUp : SvgStop}
+        disabled={
+          (chatState === "input" && !message) ||
+          (chatState === "input" && hasProcessingFiles)
+        }
+        onClick={() => {
+          if (chatState === "streaming") {
+            stopGenerating();
+          } else if (message && !hasProcessingFiles) {
+            onSubmit();
+          }
+        }}
+      />
+    </TooltipTrigger>
+    {hasProcessingFiles && (
+      <TooltipContent side="top" align="center">
+        Attached files are still processing. Try again shortly.
+      </TooltipContent>
+    )}
+  </Tooltip>
+</TooltipProvider>
+```
+
 ### 2.4 Hide spinner when uploads finish
 No change necessary—`ProjectsContext` already updates the UI once statuses flip to `COMPLETED` or `FAILED`.
 
