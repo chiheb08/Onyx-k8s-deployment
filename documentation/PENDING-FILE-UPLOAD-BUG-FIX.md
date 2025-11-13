@@ -14,6 +14,29 @@ When a user uploads a large document and immediately presses “Send”, the LLM
 
 This ensures the first prompt runs only after embeddings are available.
 
+### Architecture Flow (ASCII Diagram)
+```
+User uploads file
+    │
+    ├─► UI adds file to currentMessageFiles (status = UPLOADING)
+    │
+    ├─► API /upload endpoint stores file + returns temp IDs
+    │
+    ├─► Frontend shows chip “Processing…”
+    │
+    ├─► Celery task process_single_user_file
+    │      └─ chunks + embeddings → sets status COMPLETED/FAILED
+    │
+    └─► Frontend poll /file/statuses
+             ↓
+        hasProcessingFiles?
+        │          │
+        │ yes      │ no
+        ▼          ▼
+  Disable send   Enable send
+  & block Enter  & allow prompt
+```
+
 ---
 
 ## 2. Frontend changes (Next.js app)
