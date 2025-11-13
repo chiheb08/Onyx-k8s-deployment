@@ -44,63 +44,70 @@ User uploads file
 ### 2.1 Track file states
 `ProjectsContext.tsx` already polls `/api/user/projects/file/statuses` and keeps `currentMessageFiles` updated with `status` (enum `UserFileStatus`). Keep using these values.
 
-### 2.2 Disable send button & Enter key
+### 2.2 Disable send button & Enter key (in one place)
 
-**File:** `web/src/app/chat/components/input/ChatInputBar.tsx`
+**File to edit:** `web/src/app/chat/components/input/ChatInputBar.tsx`
 
-1. Compute a boolean flag:
-   ```ts
-   const hasProcessingFiles = currentMessageFiles.some((file) =>
-     [UserFileStatus.PROCESSING, UserFileStatus.UPLOADING].includes(
-       file.status as UserFileStatus
-     )
-   );
-   ```
+Locate the section at the bottom of the component where the send icon button is rendered (search for `id="onyx-chat-input-send-button"`). Replace that block with:
 
-2. Update the send button:
-   ```tsx
-   <IconButton
-     ...
--    disabled={chatState === "input" && !message}
-+    disabled={
-+      (chatState === "input" && !message) ||
-+      (chatState === "input" && hasProcessingFiles)
-+    }
-     onClick={() => {
-       if (chatState === "streaming") {
-         stopGenerating();
--      } else if (message) {
-+      } else if (message && !hasProcessingFiles) {
-         onSubmit();
-       }
-     }}
-   />
-   ```
+```tsx
+const hasProcessingFiles = currentMessageFiles.some((file) =>
+  [UserFileStatus.PROCESSING, UserFileStatus.UPLOADING].includes(
+    file.status as UserFileStatus
+  )
+);
 
-3. Prevent Enter key submission:
-   ```tsx
-   if (
-     event.key === "Enter" &&
-     !showPrompts &&
-     !event.shiftKey &&
-     !(event.nativeEvent as any).isComposing
-   ) {
-     event.preventDefault();
--    if (message) {
-+    if (message && !hasProcessingFiles) {
-       onSubmit();
-     }
-   }
-   ```
+...
 
-4. Show inline warning (optional):
-   ```tsx
-   {hasProcessingFiles && (
-     <div className="text-xs text-action-warning-05 px-3 pb-2">
-       Files are still indexing. Please wait…
-     </div>
-   )}
-   ```
+{hasProcessingFiles && (
+  <div className="text-xs text-action-warning-05 px-3 pb-2">
+    Files are still indexing. Please wait…
+  </div>
+)}
+
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <IconButton
+        id="onyx-chat-input-send-button"
+        icon={chatState === "input" ? SvgArrowUp : SvgStop}
+        disabled={
+          (chatState === "input" && !message) ||
+          (chatState === "input" && hasProcessingFiles)
+        }
+        onClick={() => {
+          if (chatState === "streaming") {
+            stopGenerating();
+          } else if (message && !hasProcessingFiles) {
+            onSubmit();
+          }
+        }}
+      />
+    </TooltipTrigger>
+    {hasProcessingFiles && (
+      <TooltipContent side="top" align="center">
+        Attached files are still processing. Try again shortly.
+      </TooltipContent>
+    )}
+  </Tooltip>
+</TooltipProvider>
+```
+
+Also extend the keyboard handler so it respects the same flag. Inside the textarea’s `onKeyDown`, replace the submit block with:
+
+```tsx
+if (
+  event.key === "Enter" &&
+  !showPrompts &&
+  !event.shiftKey &&
+  !(event.nativeEvent as any).isComposing
+) {
+  event.preventDefault();
+  if (message && !hasProcessingFiles) {
+    onSubmit();
+  }
+}
+```
 
 ### 2.3 Tooltip on send button
 Wrap the icon button with a tooltip to explain why it’s disabled:
