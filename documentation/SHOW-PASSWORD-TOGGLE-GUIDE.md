@@ -1,115 +1,110 @@
-# Adding a “Show Password” Toggle to Onyx Login
+# Show/Hide Password Toggle – Quick Guide
 
-This note documents every code change needed to add a show/hide password button on the login form (and any other password field that uses the shared `TextFormField`).
+This guide explains, step by step, how we added an eye icon to reveal or hide the password on Onyx’s login form (and any other Formik field that reuses `TextFormField`).
 
 ---
 
-## 1. Update `TextFormField` (shared field component)
+## Overview
+
+| Area | File | Purpose |
+|------|------|---------|
+| Shared form field | `web/src/components/Field.tsx` | Allow inputs to render a right-aligned control (`endAdornment`). |
+| Login form | `web/src/app/auth/login/EmailPasswordForm.tsx` | Show/hide password logic using the new prop. |
+
+---
+
+## Step 1 – Enhance `TextFormField`
 **File:** `web/src/components/Field.tsx`
 
-1. **Extend React imports**
+1. **Import `ReactNode`** so the field can accept arbitrary JSX adornments:
    ```diff
-- import { useState, useCallback, useEffect, memo, useRef } from "react";
-+ import {
-+   useState,
-+   useCallback,
-+   useEffect,
-+   memo,
-+   useRef,
-+   ReactNode,
-+ } from "react";
+   - import { useState, useCallback, useEffect, memo, useRef } from "react";
+   + import {
+   +   useState,
+   +   useCallback,
+   +   useEffect,
+   +   memo,
+   +   useRef,
+   +   ReactNode,
+   + } from "react";
    ```
 
-2. **Add new prop to the component signature**
+2. **Expose an `endAdornment` prop:**
    ```diff
- export function TextFormField({
+     className,
+   +  endAdornment,
+   }: {
    ...
--  className,
-+  className,
-+  endAdornment,
- }: {
-   ...
--  className?: string;
-+  className?: string;
-+  endAdornment?: ReactNode;
- }) {
+     className?: string;
+   +  endAdornment?: ReactNode;
+   })
    ```
 
-3. **Adjust the input wrapper to reserve space and render the adornment**
+3. **Render the adornment inside the input wrapper and reserve space:**
    ```diff
-   <div className={`w-full flex ${includeRevert && "gap-x-2"} relative`}>
-     <Field
-       ...
--      className={`
-+      className={`
-           ...
--          ${className}
-+          ${endAdornment ? "pr-10" : ""}
-+          ${className}
-           bg-background-neutral-00
+         className={`
+             ...
+   -          ${className}
+   +          ${endAdornment ? "pr-10" : ""}
+   +          ${className}
+             bg-background-neutral-00
          `}
-       ...
-     />
-+    {endAdornment && (
-+      <div className="absolute inset-y-0 right-3 flex items-center">
-+        {endAdornment}
-+      </div>
-+    )}
-   </div>
+         ...
+       />
+   +    {endAdornment && (
+   +      <div className="absolute inset-y-0 right-3 flex items-center">
+   +        {endAdornment}
+   +      </div>
+   +    )}
    ```
 
-This makes the field capable of accepting any control (buttons, icons, etc.) on the right-hand side.
+✅ Result: any consumer of `TextFormField` can now supply a button or icon via `endAdornment`, and the input automatically adds padding on the right.
 
 ---
 
-## 2. Update the login form
+## Step 2 – Use the Toggle on the Login Form
 **File:** `web/src/app/auth/login/EmailPasswordForm.tsx`
 
-1. **Import toggle icons**
+1. **Import icons:**
    ```ts
    import { FiEye, FiEyeOff } from "react-icons/fi";
    ```
 
-2. **Add component state**
+2. **Track whether the password is visible:**
    ```ts
    const [showPassword, setShowPassword] = useState(false);
    const togglePasswordVisibility = () => setShowPassword((prev) => !prev);
    ```
 
-3. **Replace the password field with a toggle-aware version**
-   ```diff
+3. **Update the password field:**
+   ```tsx
    <TextFormField
      name="password"
      label="Password"
--    type="password"
-+    type={showPassword ? "text" : "password"}
+     type={showPassword ? "text" : "password"}
      placeholder="**************"
      data-testid="password"
-+    endAdornment={
-+      <button
-+        type="button"
-+        onClick={togglePasswordVisibility}
-+        aria-label={showPassword ? "Hide password" : "Show password"}
-+        className="text-text-03 hover:text-text-04 focus:outline-none"
-+      >
-+        {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-+      </button>
-+    }
+     endAdornment={
+       <button
+         type="button"
+         onClick={togglePasswordVisibility}
+         aria-label={showPassword ? "Hide password" : "Show password"}
+         className="text-text-03 hover:text-text-04 focus:outline-none"
+       >
+         {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+       </button>
+     }
    />
    ```
 
----
-
-## 3. Result
-- Any form using `TextFormField` can now render a right-aligned control via `endAdornment`.
-- The login screen displays an eye / eye-slash icon that toggles password visibility.
-- No backend changes required; the update lives entirely in the Next.js frontend.
+Now users can tap the eye icon to switch between masked and plain text.
 
 ---
 
-## 4. Deployment checklist
+## Deployment Checklist
+
 1. Apply the code changes in `onyx-repo`.
-2. Build the web app (`pnpm build` or your deployment pipeline).
-3. Redeploy the frontend so users see the toggle.
+2. Build the web app (`pnpm build` or your CI pipeline).
+3. Redeploy the frontend.
 
-These steps match the code modifications already committed to the web repo. Use this guide as the canonical reference for reproducing or backporting the change.
+That’s all—no backend changes required. The pattern is reusable for other forms that need a toggle or trailing button inside the input field.
