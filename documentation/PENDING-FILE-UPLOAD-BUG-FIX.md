@@ -93,9 +93,97 @@ const hasProcessingFiles = currentMessageFiles.some((file) =>
 </TooltipProvider>
 ```
 
+For reference, here is a direct comparison between the original snippet and the updated one:
+
+```tsx
+--- old -------------------------------------------------
+<IconButton
+  id="onyx-chat-input-send-button"
+  icon={chatState === "input" ? SvgArrowUp : SvgStop}
+  disabled={chatState === "input" && !message}
+  onClick={() => {
+    if (chatState === "streaming") {
+      stopGenerating();
+    } else if (message) {
+      onSubmit();
+    }
+  }}
+/>
+
+--- new -------------------------------------------------
+const hasProcessingFiles = currentMessageFiles.some((file) =>
+  [UserFileStatus.PROCESSING, UserFileStatus.UPLOADING].includes(
+    file.status as UserFileStatus
+  )
+);
+
+{hasProcessingFiles && (
+  <div className="text-xs text-action-warning-05 px-3 pb-2">
+    Files are still indexing. Please wait…
+  </div>
+)}
+
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <IconButton
+        id="onyx-chat-input-send-button"
+        icon={chatState === "input" ? SvgArrowUp : SvgStop}
+        disabled={
+          (chatState === "input" && !message) ||
+          (chatState === "input" && hasProcessingFiles)
+        }
+        onClick={() => {
+          if (chatState === "streaming") {
+            stopGenerating();
+          } else if (message && !hasProcessingFiles) {
+            onSubmit();
+          }
+        }}
+      />
+    </TooltipTrigger>
+    {hasProcessingFiles && (
+      <TooltipContent side="top" align="center">
+        Attached files are still processing. Try again shortly.
+      </TooltipContent>
+    )}
+  </Tooltip>
+</TooltipProvider>
+```
+
 Also extend the keyboard handler so it respects the same flag. Inside the textarea’s `onKeyDown`, replace the submit block with:
 
 ```tsx
+if (
+  event.key === "Enter" &&
+  !showPrompts &&
+  !event.shiftKey &&
+  !(event.nativeEvent as any).isComposing
+) {
+  event.preventDefault();
+  if (message && !hasProcessingFiles) {
+    onSubmit();
+  }
+}
+```
+
+And the before/after view for that block:
+
+```tsx
+--- old -------------------------------------------------
+if (
+  event.key === "Enter" &&
+  !showPrompts &&
+  !event.shiftKey &&
+  !(event.nativeEvent as any).isComposing
+) {
+  event.preventDefault();
+  if (message) {
+    onSubmit();
+  }
+}
+
+--- new -------------------------------------------------
 if (
   event.key === "Enter" &&
   !showPrompts &&
