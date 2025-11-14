@@ -17,9 +17,25 @@ This guide provides step-by-step instructions with exact code comparisons (old v
 
 **File:** `web/src/components/Field.tsx`
 
-**Location:** Find the imports section at the top of the file (around line 32-39).
-
 ### 1.1 Add `ReactNode` to React Imports
+
+**📍 WHERE TO FIND IT:**
+1. Open the file `web/src/components/Field.tsx`
+2. Scroll to the **top of the file** (around line 32-39)
+3. Look for a section that says `import { ... } from "react";`
+4. You should see something like this:
+
+```typescript
+import {
+  useState,
+  useCallback,
+  useEffect,
+  memo,
+  useRef,
+} from "react";
+```
+
+**✏️ WHAT TO CHANGE:**
 
 --- old ---
 ```typescript
@@ -40,155 +56,166 @@ import {
   useEffect,
   memo,
   useRef,
-  ReactNode,
+  ReactNode,  // ← ADD THIS LINE (add a comma after useRef, then add ReactNode)
 } from "react";
 ```
 
----
+**📝 STEP-BY-STEP:**
+1. Find the line that says `useRef,` (it should be the last item before the closing `}`)
+2. Add a comma after `useRef,` if it doesn't have one
+3. On the next line, add `ReactNode,` (with a comma at the end)
+4. Make sure the closing `}` and `from "react";` stay on the same lines
 
-**Location:** Find the `TextFormField` function definition (around line 223-279). Look for the function parameters and type definition.
+---
 
 ### 1.2 Add `endAdornment` Prop to Function Parameters
 
---- old ---
+**📍 WHERE TO FIND IT:**
+1. In the same file (`Field.tsx`), scroll down to find the function that starts with `export function TextFormField({`
+2. This should be around **line 223-250**
+3. Look for the function parameters list - you'll see many properties like `name`, `label`, `placeholder`, etc.
+4. Find the last property in the list (it should be `className,`)
+5. Right after `className,`, you'll see a closing `}: {` - this is where the type definition starts
+
+**✏️ WHAT TO CHANGE:**
+
+**PART A - Add `endAdornment` to the function parameters:**
+
+Look for this section (around line 249-250):
 ```typescript
-export function TextFormField({
-  name,
-  label,
-  subtext,
-  placeholder,
-  type = "text",
-  optional,
-  includeRevert,
-  isTextArea = false,
-  disabled = false,
-  autoCompleteDisabled = true,
-  // ... other props ...
   className,
 }: {
-  name: string;
-  // ... other type definitions ...
+```
+
+--- old ---
+```typescript
+  vertical,
+  className,
+}: {
+```
+
+--- new ---
+```typescript
+  vertical,
+  className,
+  endAdornment,  // ← ADD THIS LINE (add a comma after className, then add endAdornment,)
+}: {
+```
+
+**PART B - Add `endAdornment?: ReactNode;` to the type definition:**
+
+Now look a bit further down (around line 277-278) where you see the type definitions. Find the line that says `className?: string;` - this should be near the end of the type definition object.
+
+--- old ---
+```typescript
+  width?: string;
+  vertical?: boolean;
   className?: string;
 })
 ```
 
 --- new ---
 ```typescript
-export function TextFormField({
-  name,
-  label,
-  subtext,
-  placeholder,
-  type = "text",
-  optional,
-  includeRevert,
-  isTextArea = false,
-  disabled = false,
-  autoCompleteDisabled = true,
-  // ... other props ...
-  className,
-  endAdornment,
-}: {
-  name: string;
-  // ... other type definitions ...
+  width?: string;
+  vertical?: boolean;
   className?: string;
-  endAdornment?: ReactNode;
+  endAdornment?: ReactNode;  // ← ADD THIS LINE (add after className?: string;)
 })
 ```
+
+**📝 STEP-BY-STEP:**
+1. Find the function parameters list (the part inside `export function TextFormField({ ... })`)
+2. Find `className,` (should be near the end of the parameter list)
+3. Add a new line after `className,` and type: `endAdornment,`
+4. Now find the type definition section (the part after `}: {`)
+5. Find `className?: string;` (should be near the end)
+6. Add a new line after `className?: string;` and type: `endAdornment?: ReactNode;`
 
 ---
 
-**Location:** Find the input element inside `TextFormField` (around line 360-381). Look for the `<input>` or `<textarea>` element and its className.
-
 ### 1.3 Add Padding for Adornment and Render It
+
+**📍 WHERE TO FIND IT:**
+1. Still in the same file (`Field.tsx`), scroll down inside the `TextFormField` function
+2. Look for an `<input>` element (around line 360-381)
+3. You'll see it has a `className` prop with many lines of CSS classes
+4. Find the line that says `px-3` (this is the horizontal padding)
+5. Right after `px-3`, you need to add the conditional padding
+6. Then, after the closing `/>` of the input element, you need to add the adornment rendering code
+
+**✏️ WHAT TO CHANGE:**
+
+**PART A - Add padding in the className:**
+
+Find the `className` section of the `<input>` element. Look for this pattern:
+
+```typescript
+    border
+    px-3
+    py-2
+```
 
 --- old ---
 ```typescript
-<input
-  data-testid={name}
-  name={name}
-  id={name}
-  className={`
-    ${small && sizeClass.input}
-    flex
-    h-10
-    w-full
-    rounded-md
     border
     px-3
     py-2
     mt-1
-    file:border-0
-    file:bg-transparent
-    file:text-sm
-    file:font-medium
-    file:text-foreground
-    placeholder:text-text-03
-    focus-visible:outline-none
-    focus-visible:ring-2
-    focus-visible:ring-ring
-    disabled:cursor-not-allowed
-    disabled:opacity-50
-    ${heightString}
-    ${sizeClass.input}
-    ${disabled ? "bg-background-neutral-02" : ""}
-    ${isCode ? "font-mono" : ""}
-    ${className}
-    bg-background-neutral-00
-  `}
-  disabled={disabled}
-  placeholder={placeholder}
+```
+
+--- new ---
+```typescript
+    border
+    px-3
+    ${endAdornment ? "pr-10" : ""}  // ← ADD THIS LINE (add right after px-3)
+    py-2
+    mt-1
+```
+
+**PART B - Add the adornment rendering code after the input:**
+
+Now scroll down a bit more. You should see the input element closing with `/>`. Right after that `/>`, you need to add the new code.
+
+Look for this:
+```typescript
+  autoComplete={autoCompleteDisabled ? "off" : undefined}
+/>
+```
+
+--- old ---
+```typescript
   autoComplete={autoCompleteDisabled ? "off" : undefined}
 />
 ```
 
 --- new ---
 ```typescript
-<input
-  data-testid={name}
-  name={name}
-  id={name}
-  className={`
-    ${small && sizeClass.input}
-    flex
-    h-10
-    w-full
-    rounded-md
-    border
-    px-3
-    ${endAdornment ? "pr-10" : ""}
-    py-2
-    mt-1
-    file:border-0
-    file:bg-transparent
-    file:text-sm
-    file:font-medium
-    file:text-foreground
-    placeholder:text-text-03
-    focus-visible:outline-none
-    focus-visible:ring-2
-    focus-visible:ring-ring
-    disabled:cursor-not-allowed
-    disabled:opacity-50
-    ${heightString}
-    ${sizeClass.input}
-    ${disabled ? "bg-background-neutral-02" : ""}
-    ${isCode ? "font-mono" : ""}
-    ${className}
-    bg-background-neutral-00
-  `}
-  disabled={disabled}
-  placeholder={placeholder}
   autoComplete={autoCompleteDisabled ? "off" : undefined}
 />
-{endAdornment && (
+{endAdornment && (  // ← ADD THIS ENTIRE BLOCK (starts right after the />)
   <div className="absolute inset-y-0 right-3 flex items-center">
     {endAdornment}
   </div>
 )}
 ```
 
-**Note:** The input wrapper (`<div>`) should have `position: relative` for the absolute positioning to work. Make sure the parent div has `relative` class if it doesn't already.
+**📝 STEP-BY-STEP:**
+1. Find the `<input>` element inside the `TextFormField` function
+2. Find the `className` prop (it's a multi-line string with backticks)
+3. Look for the line that says `px-3` (horizontal padding)
+4. Add a new line right after `px-3` and type: `${endAdornment ? "pr-10" : ""}`
+5. Now find where the input element ends (look for `/>`)
+6. Right after the `/>`, press Enter to create a new line
+7. Copy and paste this entire block:
+   ```typescript
+   {endAdornment && (
+     <div className="absolute inset-y-0 right-3 flex items-center">
+       {endAdornment}
+     </div>
+   )}
+   ```
+
+**⚠️ IMPORTANT NOTE:** Make sure the input's parent `<div>` wrapper has `position: relative` class. If it doesn't, the absolute positioning won't work. Check the div that wraps the input element - it should have a `relative` class in its className.
 
 ---
 
@@ -196,9 +223,15 @@ export function TextFormField({
 
 **File:** `web/src/app/auth/login/EmailPasswordForm.tsx`
 
-**Location:** Find the imports section at the top of the file (around line 1-15).
-
 ### 2.1 Import Eye Icons
+
+**📍 WHERE TO FIND IT:**
+1. Open the file `web/src/app/auth/login/EmailPasswordForm.tsx`
+2. Scroll to the **very top of the file** (lines 1-15)
+3. You'll see many `import` statements
+4. Find the last `import` statement (it should be around line 14-15, something like `import { validateInternalRedirect } from ...`)
+
+**✏️ WHAT TO CHANGE:**
 
 --- old ---
 ```typescript
@@ -230,14 +263,28 @@ import { Spinner } from "@/components/Spinner";
 import Link from "next/link";
 import { useUser } from "@/components/user/UserProvider";
 import { validateInternalRedirect } from "@/lib/auth/redirectValidation";
-import { FiEye, FiEyeOff } from "react-icons/fi";
+import { FiEye, FiEyeOff } from "react-icons/fi";  // ← ADD THIS LINE (add at the end of all imports)
 ```
+
+**📝 STEP-BY-STEP:**
+1. Find the last `import` statement in the file (should be `import { validateInternalRedirect }...`)
+2. Press Enter after that line to create a new line
+3. Type: `import { FiEye, FiEyeOff } from "react-icons/fi";`
+4. Make sure it's at the same indentation level as the other imports
 
 ---
 
-**Location:** Find the component function body, right after the `useState` hooks (around line 34-37).
-
 ### 2.2 Add Password Visibility State
+
+**📍 WHERE TO FIND IT:**
+1. Still in the same file (`EmailPasswordForm.tsx`), scroll down past the imports
+2. Find the function that starts with `export default function EmailPasswordForm({`
+3. Inside that function, you'll see several lines that start with `const` or `useState`
+4. Look for this line: `const [isWorking, setIsWorking] = useState<boolean>(false);`
+5. This should be around **line 36-37**
+6. Right after this line, you need to add the new state and function
+
+**✏️ WHAT TO CHANGE:**
 
 --- old ---
 ```typescript
@@ -267,18 +314,48 @@ export default function EmailPasswordForm({
   const { user } = useUser();
   const { popup, setPopup } = usePopup();
   const [isWorking, setIsWorking] = useState<boolean>(false);
-  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);  // ← ADD THIS LINE
 
-  const togglePasswordVisibility = () => {
+  const togglePasswordVisibility = () => {  // ← ADD THIS FUNCTION (add after the useState line)
     setShowPassword((prev) => !prev);
   };
 ```
 
+**📝 STEP-BY-STEP:**
+1. Find the line: `const [isWorking, setIsWorking] = useState<boolean>(false);`
+2. Press Enter after that line to create a new line
+3. Type: `const [showPassword, setShowPassword] = useState<boolean>(false);`
+4. Press Enter again to create another new line
+5. Copy and paste this entire function:
+   ```typescript
+   const togglePasswordVisibility = () => {
+     setShowPassword((prev) => !prev);
+   };
+   ```
+
 ---
 
-**Location:** Find the password `TextFormField` inside the `<Form>` component (around line 152-168).
-
 ### 2.3 Update Password Field with Toggle
+
+**📍 WHERE TO FIND IT:**
+1. Still in the same file (`EmailPasswordForm.tsx`), scroll down further
+2. Look for a `<Form>` component (this is from Formik)
+3. Inside the `<Form>`, you'll see two `TextFormField` components:
+   - First one is for `email`
+   - Second one is for `password` (this is the one you need to change)
+4. The password field should look like this:
+   ```typescript
+   <TextFormField
+     name="password"
+     label="Password"
+     type="password"
+     placeholder="**************"
+     data-testid="password"
+   />
+   ```
+5. This should be around **line 152-168**
+
+**✏️ WHAT TO CHANGE:**
 
 --- old ---
 ```typescript
@@ -296,10 +373,10 @@ export default function EmailPasswordForm({
 <TextFormField
   name="password"
   label="Password"
-  type={showPassword ? "text" : "password"}
+  type={showPassword ? "text" : "password"}  // ← CHANGE THIS LINE (replace "password" with the conditional)
   placeholder="**************"
   data-testid="password"
-  endAdornment={
+  endAdornment={  // ← ADD THIS ENTIRE BLOCK (add before the closing />)
     <button
       type="button"
       onClick={togglePasswordVisibility}
@@ -311,6 +388,27 @@ export default function EmailPasswordForm({
   }
 />
 ```
+
+**📝 STEP-BY-STEP:**
+1. Find the `<TextFormField>` component with `name="password"`
+2. Find the line that says `type="password"` and change it to: `type={showPassword ? "text" : "password"}`
+3. Find the line that says `data-testid="password"` (this should be the last property before the closing `/>`)
+4. After `data-testid="password"`, press Enter to create a new line
+5. Add a comma after `data-testid="password"` if it doesn't have one
+6. Copy and paste this entire block:
+   ```typescript
+   endAdornment={
+     <button
+       type="button"
+       onClick={togglePasswordVisibility}
+       aria-label={showPassword ? "Hide password" : "Show password"}
+       className="text-text-03 hover:text-text-04 focus:outline-none"
+     >
+       {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+     </button>
+   }
+   ```
+7. Make sure the closing `/>` is on a new line after the `endAdornment` block
 
 ---
 
