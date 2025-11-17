@@ -2,6 +2,15 @@
 
 This guide provides step-by-step instructions with exact code comparisons (old vs. new) for adding a show/hide password toggle to the Onyx login form.
 
+**✅ NOTE:** This feature is **already implemented** in the Onyx codebase. You can verify the implementation by checking:
+- `web/src/components/Field.tsx` (lines 38, 250, 278, 374, 382-386)
+- `web/src/app/auth/login/EmailPasswordForm.tsx` (lines 15, 37-41, 155, 158-167)
+
+This guide shows you exactly what was implemented, so you can either:
+1. **Verify** your code matches the official implementation
+2. **Re-implement** it if needed in a different environment
+3. **Understand** how the feature works
+
 ---
 
 ## Overview
@@ -147,30 +156,30 @@ Now look a bit further down (around line 277-278) where you see the type definit
 
 **PART A - Add padding in the className:**
 
-Find the `className` section of the `<input>` element. Look for this pattern:
+Find the `className` section of the `<input>` element. The className is a very long multi-line string. You need to find the section near the end, right before `${className}`. Look for this pattern:
 
 ```typescript
-    border
-    px-3
-    py-2
+    ${isCode ? "font-mono" : ""}
+    ${className}
+    bg-background-neutral-00
 ```
 
 --- old ---
 ```typescript
-    border
-    px-3
-    py-2
-    mt-1
+    ${isCode ? "font-mono" : ""}
+    ${className}
+    bg-background-neutral-00
 ```
 
 --- new ---
 ```typescript
-    border
-    px-3
-    ${endAdornment ? "pr-10" : ""}  // ← ADD THIS LINE (add right after px-3)
-    py-2
-    mt-1
+    ${isCode ? "font-mono" : ""}
+    ${endAdornment ? "pr-10" : ""}  // ← ADD THIS LINE (add right before ${className})
+    ${className}
+    bg-background-neutral-00
 ```
+
+**Note:** In the actual code, this line appears around line 374, after many other CSS classes. The important thing is to add it right before `${className}` in the className string.
 
 **PART B - Add the adornment rendering code after the input:**
 
@@ -200,13 +209,14 @@ Look for this:
 ```
 
 **📝 STEP-BY-STEP:**
-1. Find the `<input>` element inside the `TextFormField` function
-2. Find the `className` prop (it's a multi-line string with backticks)
-3. Look for the line that says `px-3` (horizontal padding)
-4. Add a new line right after `px-3` and type: `${endAdornment ? "pr-10" : ""}`
-5. Now find where the input element ends (look for `/>`)
-6. Right after the `/>`, press Enter to create a new line
-7. Copy and paste this entire block:
+1. Find the `<input>` element inside the `TextFormField` function (it's actually a `<Field>` component with `as="input"`)
+2. Find the `className` prop (it's a very long multi-line string with backticks, starting around line 339)
+3. Scroll down through all the CSS classes until you find `${isCode ? "font-mono" : ""}` (around line 373)
+4. Right after that line, add a new line and type: `${endAdornment ? "pr-10" : ""}`
+5. Make sure it's placed right before `${className}` (which should be on the next line)
+6. Now find where the input element ends (look for `/>` around line 381)
+7. Right after the `/>`, press Enter to create a new line
+8. Copy and paste this entire block:
    ```typescript
    {endAdornment && (
      <div className="absolute inset-y-0 right-3 flex items-center">
@@ -215,7 +225,7 @@ Look for this:
    )}
    ```
 
-**⚠️ IMPORTANT NOTE:** Make sure the input's parent `<div>` wrapper has `position: relative` class. If it doesn't, the absolute positioning won't work. Check the div that wraps the input element - it should have a `relative` class in its className.
+**✅ VERIFICATION:** The parent `<div>` wrapper already has `relative` class in the actual implementation (line 330: `className={`w-full flex ${includeRevert && "gap-x-2"} relative`}`), so the absolute positioning will work correctly.
 
 ---
 
