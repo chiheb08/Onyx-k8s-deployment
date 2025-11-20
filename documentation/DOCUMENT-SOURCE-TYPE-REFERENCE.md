@@ -54,7 +54,7 @@ You can retrieve the exact descriptive text from the `DocumentSourceDescription`
 | Table | Field | Description |
 |-------|-------|-------------|
 | `document` | `source` | Primary `source_type` value |
-| `document_by_connector_credential_pair` | `connector_credential_pair_id`, `id` (same as `document.id`) | Links documents to the connector+credential that produced them |
+| `document_by_connector_credential_pair` | `id`, `connector_id`, `credential_id`, `has_been_indexed` | Links documents to the connector and credential that produced them |
 | `user_file` | `id` / `owner_id` | Used for UI metadata. All user-uploaded files have `document.source = 'user_file'` |
 | `connector` | `source` column | Identifies what type of connector (e.g., `confluence`, `github`) – often matches the document source |
 
@@ -69,10 +69,13 @@ SELECT
   d.source AS source_type,
   c.name AS connector_name,
   c.source  AS connector_source,
-  dccp.latest_sync_time
+  dccp.has_been_indexed,
+  ccp.last_successful_index_time
 FROM document d
 LEFT JOIN document_by_connector_credential_pair dccp ON d.id = dccp.id
-LEFT JOIN connector_credential_pair ccp ON ccp.id = dccp.connector_credential_pair_id
+LEFT JOIN connector_credential_pair ccp
+       ON ccp.connector_id = dccp.connector_id
+      AND ccp.credential_id = dccp.credential_id
 LEFT JOIN connector c ON c.id = ccp.connector_id
 ORDER BY d.created_at DESC
 LIMIT 50;

@@ -10,7 +10,7 @@ This reference explains how uploaded documents are stored in the Onyx database a
 |-------|---------|-------------------|
 | `user_file` | Tracks files uploaded via the UI (per user) | `id (UUID)`, `name`, `status`, `owner_id`, `file_id`, `chunk_count`, `created_at` |
 | `document` | Canonical document entry used for search/indexing | `id (UUID string)`, `semantic_identifier`, `source`, `link`, `created_at`, `deleted` |
-| `document_by_connector_credential_pair` | Bridges documents to connectors/credentials | `id (UUID)`, `connector_credential_pair_id`, `document_id`, `latest_sync_time`, `status` |
+| `document_by_connector_credential_pair` | Bridges documents to connectors/credentials | `id` (FK to `document.id`), `connector_id`, `credential_id`, `has_been_indexed` |
 | `search_doc` | Metadata for individual chunks indexed in Vespa | `id`, `document_id`, `chunk_ind`, `blurb`, `boost`, `hidden` |
 | `persona__user_file` (join) | Associates user-uploaded files to assistants/personas | `persona_id`, `user_file_id` |
 | `document__tag`, `document__set`, etc. | Tagging and grouping relationships | vary |
@@ -87,14 +87,21 @@ ORDER BY sd.chunk_ind;
 ### 2.5 List Documents Per Connector
 ```sql
 SELECT
-  dccp.connector_credential_pair_id,
+  d.id,
   d.semantic_identifier,
-  dccp.status,
-  dccp.latest_sync_time
-FROM document_by_connector_credential_pair dccp
-JOIN document d ON d.id = dccp.id
-WHERE dccp.connector_credential_pair_id = <CC_PAIR_ID>
-ORDER BY dccp.latest_sync_time DESC;
+  d.source            AS doc_source,
+  dccp.has_been_indexed,
+  ccp.name            AS connector_name,
+  ccp.last_successful_index_time
+FROM document d
+LEFT JOIN document_by_connector_credential_pair dccp
+       ON d.id = dccp.id
+LEFT JOIN connector_credential_pair ccp
+       ON ccp.connector_id = dccp.connector_id
+      AND ccp.credential_id = dccp.credential_id
+WHERE ccp.id = <CONNECTOR_CREDENTIAL_PAIR_ID>
+ORDER BY ccp.last_successful_index_time DESC
+LIMIT 50;
 ```
 
 ---
