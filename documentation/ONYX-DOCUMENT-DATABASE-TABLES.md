@@ -104,6 +104,24 @@ ORDER BY ccp.last_successful_index_time DESC
 LIMIT 50;
 ```
 
+### 2.6 List All Documents With Their Source Type (including user uploads)
+```sql
+SELECT
+  d.id                 AS document_id,
+  d.semantic_identifier AS title,
+  d.source             AS source_type,
+  uf.name              AS user_file_name,
+  uf.owner_id          AS user_file_owner,
+  d.created_at
+FROM document d
+LEFT JOIN user_file uf
+       ON uf.id::text = d.id   -- matches rows where source_type = 'user_file'
+ORDER BY d.created_at DESC
+LIMIT 50;
+```
+- `source_type` is the canonical origin (`user_file`, `confluence`, `slack`, etc.).
+- `user_file_name/owner` populate only for direct uploads; other connector docs keep those columns NULL.
+
 ---
 
 ## 3. Table Relationships
