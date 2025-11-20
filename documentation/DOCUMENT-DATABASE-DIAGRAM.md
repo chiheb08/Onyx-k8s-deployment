@@ -46,7 +46,7 @@ erDiagram
     CONNECTOR_CREDENTIAL_PAIR {
         int connector_id PK
         int credential_id PK
-        int id (seq)
+        int id_seq
         text name
         text status
         timestamptz last_successful_index_time
