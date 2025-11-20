@@ -104,23 +104,33 @@ ORDER BY ccp.last_successful_index_time DESC
 LIMIT 50;
 ```
 
-### 2.6 List All Documents With Their Source Type (including user uploads)
+### 2.6 List All Documents With Their Source Type (user uploads + connector docs)
 ```sql
 SELECT
-  d.id                 AS document_id,
-  d.semantic_identifier AS title,
-  d.source             AS source_type,
-  uf.name              AS user_file_name,
-  uf.owner_id          AS user_file_owner,
+  d.id                      AS document_id,
+  d.semantic_identifier     AS title,
+  d.source                  AS source_type,
+  COALESCE(uf.name, d.semantic_identifier) AS original_name,
+  uf.owner_id               AS uploaded_by_user,
+  c.name                    AS connector_name,
+  c.source                  AS connector_type,
   d.created_at
 FROM document d
 LEFT JOIN user_file uf
-       ON uf.id::text = d.id   -- matches rows where source_type = 'user_file'
+       ON uf.id::text = d.id
+LEFT JOIN document_by_connector_credential_pair dccp
+       ON d.id = dccp.id
+LEFT JOIN connector_credential_pair ccp
+       ON ccp.connector_id = dccp.connector_id
+      AND ccp.credential_id = dccp.credential_id
+LEFT JOIN connector c
+       ON c.id = ccp.connector_id
 ORDER BY d.created_at DESC
 LIMIT 50;
 ```
 - `source_type` is the canonical origin (`user_file`, `confluence`, `slack`, etc.).
-- `user_file_name/owner` populate only for direct uploads; other connector docs keep those columns NULL.
+- `original_name` surfaces the uploaded filename for user files; connector entries fall back to the document’s semantic identifier.
+- `connector_name`/`connector_type` populate only when the document was ingested via a connector; they stay `NULL` for pure user uploads.
 
 ---
 
