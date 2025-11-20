@@ -9,7 +9,7 @@ This reference explains how uploaded documents are stored in the Onyx database a
 | Table | Purpose | Important Columns |
 |-------|---------|-------------------|
 | `user_file` | Tracks files uploaded via the UI (per user) | `id (UUID)`, `name`, `status`, `owner_id`, `file_id`, `chunk_count`, `created_at` |
-| `document` | Canonical document entry used for search/indexing | `id (UUID string)`, `semantic_identifier`, `source`, `link`, `created_at`, `deleted` |
+| `document` | Canonical document entry used for search/indexing | `id (UUID string)`, `semantic_id`, `link`, `doc_updated_at`, `deleted`, `created_at` |
 | `document_by_connector_credential_pair` | Bridges documents to connectors/credentials | `id` (FK to `document.id`), `connector_id`, `credential_id`, `has_been_indexed` |
 | `search_doc` | Metadata for individual chunks indexed in Vespa | `id`, `document_id`, `chunk_ind`, `blurb`, `boost`, `hidden` |
 | `persona__user_file` (join) | Associates user-uploaded files to assistants/personas | `persona_id`, `user_file_id` |
@@ -41,8 +41,7 @@ LIMIT 20;
 ```sql
 SELECT
   id,
-  semantic_identifier,
-  source,
+  semantic_id,
   link,
   deleted,
   created_at
@@ -59,7 +58,7 @@ SELECT
   uf.id AS user_file_id,
   uf.name,
   d.id AS document_id,
-  d.semantic_identifier,
+  d.semantic_id,
   uf.status,
   uf.chunk_count,
   uf.created_at
@@ -108,9 +107,12 @@ LIMIT 50;
 ```sql
 SELECT
   d.id                      AS document_id,
-  d.semantic_identifier     AS title,
-  d.source                  AS source_type,
-  COALESCE(uf.name, d.semantic_identifier) AS original_name,
+  d.semantic_id             AS title,
+  COALESCE(
+      c.source,
+      CASE WHEN uf.id IS NOT NULL THEN 'user_file' ELSE 'ingestion_api' END
+  )                         AS source_type,
+  COALESCE(uf.name, d.semantic_id) AS original_name,
   uf.owner_id               AS uploaded_by_user,
   c.name                    AS connector_name,
   c.source                  AS connector_type,
