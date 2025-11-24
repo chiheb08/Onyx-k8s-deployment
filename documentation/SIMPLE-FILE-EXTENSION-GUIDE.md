@@ -38,7 +38,7 @@ flowchart LR
 
 | File | Lines to edit | Purpose |
 |------|---------------|---------|
-| `backend/onyx/file_processing/allowed_extensions.py` | new file | Load env vars and expose `ALLOWED_EXTENSIONS`. |
+| `backend/onyx/file_processing/allowed_extensions.py` | new file | Load env vars (required) and expose `ALLOWED_EXTENSIONS`. |
 | `backend/onyx/file_processing/extract_file_text.py` | ~43-140 | Replace hard-coded lists + helper functions. |
 | `backend/onyx/server/features/projects/api.py` | ~120-250 | Validate uploads + add optional `/uploads/constraints`. |
 | `web/src/lib/utils.ts` | ~80-150 | Add `fetchUploadConstraints()` and remove `IMAGE_EXTENSIONS`. |
@@ -54,20 +54,15 @@ Use these line ranges as anchors when applying the steps below.
 **File:** `backend/onyx/file_processing/allowed_extensions.py` (new file)
 
 ```python
-# NEW FILE CONTENT
+# NEW FILE CONTENT (all values come from env)
 import os
 
-DEFAULT_EXTENSIONS = {
-    "plain_text": [".txt", ".md", ".mdx", ".log", ".csv"],
-    "document": [".pdf", ".docx", ".pptx", ".xlsx", ".eml", ".epub", ".html"],
-    "image": [".png", ".jpg", ".jpeg", ".webp"],
-}
-
-
-def _load(key: str, fallback: list[str]) -> list[str]:
-    raw = os.environ.get(key, "")
+def _load_required(key: str) -> list[str]:
+    raw = os.environ.get(key)
     if not raw:
-        return fallback
+        raise RuntimeError(
+            f"{key} must be set (comma-separated list). Define it in 05-configmap.yaml."
+        )
     extensions = []
     for part in raw.split(","):
         cleaned = part.strip().lower()
@@ -76,13 +71,15 @@ def _load(key: str, fallback: list[str]) -> list[str]:
         if not cleaned.startswith("."):
             cleaned = "." + cleaned
         extensions.append(cleaned)
-    return extensions or fallback
+    if not extensions:
+        raise RuntimeError(f"{key} resolved to an empty list. Provide at least one extension.")
+    return extensions
 
 
 ALLOWED_EXTENSIONS = {
-    "plain_text": _load("USER_FILE_ALLOWED_EXTENSIONS_PLAIN", DEFAULT_EXTENSIONS["plain_text"]),
-    "document": _load("USER_FILE_ALLOWED_EXTENSIONS_DOC", DEFAULT_EXTENSIONS["document"]),
-    "image": _load("USER_FILE_ALLOWED_EXTENSIONS_IMG", DEFAULT_EXTENSIONS["image"]),
+    "plain_text": _load_required("USER_FILE_ALLOWED_EXTENSIONS_PLAIN"),
+    "document": _load_required("USER_FILE_ALLOWED_EXTENSIONS_DOC"),
+    "image": _load_required("USER_FILE_ALLOWED_EXTENSIONS_IMG"),
 }
 
 ALLOWED_EXTENSIONS["all"] = sorted(
@@ -254,6 +251,8 @@ useEffect(() => {
 ## Step 6 – Wire the Environment Variables
 
 **File:** `manifests/05-configmap.yaml`
+
+All three variables below are required because the backend has **no code defaults**.
 
 ```yaml
 data:
