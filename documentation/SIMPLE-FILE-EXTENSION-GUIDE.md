@@ -263,16 +263,33 @@ This gives us a reusable helper to retrieve the allowed extensions from the back
 
 2. **Add state + effect near the beginning of the component**
 
-   Inside `export function ProjectContextPanel(...) { ... }`, right after the existing `useState` / `useMemo` blocks, add:
+   You will find something like:
 
    ```ts
+   export function ProjectContextPanel(props: ProjectContextPanelProps) {
+     const [showUploader, setShowUploader] = useState(false);
+     // ...other hooks...
+   ```
+
+   Insert the new block **right after** the existing `useState` / `useMemo` hooks, before any `useEffect` already there. Use the old/new format below.
+
+   **Old:**
+   ```ts
+   const [showUploader, setShowUploader] = useState(false);
+   const projectFiles = useMemo(/* ... */);
+   ```
+
+   **New:**
+   ```ts
+   const [showUploader, setShowUploader] = useState(false);
+   const projectFiles = useMemo(/* ... */);
+
    const [uploadConstraints, setUploadConstraints] = useState<UploadConstraints | null>(null);
 
    useEffect(() => {
      fetchUploadConstraints()
        .then(setUploadConstraints)
        .catch(() => {
-         // Fallback – in case the API call fails
          setUploadConstraints({
            plain_text: [".txt", ".md"],
            document: [".pdf", ".docx"],
