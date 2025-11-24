@@ -302,30 +302,25 @@ This gives us a reusable helper to retrieve the allowed extensions from the back
 
 3. **Update the `<input type="file">` element**
 
-   Find the existing file input in this component. It currently looks like:
+   In this component the file input is provided by `react-dropzone`. Scroll toward the bottom until you see the comment:
+
+   ```tsx
+   {/* Hidden input just to satisfy dropzone contract; we rely on FilePicker for clicks */}
+   <input {...getInputProps()} />
+   ```
+
+   Replace that line with the following so we inject the `accept` list while keeping all the dropzone props:
 
    ```tsx
    <input
-     type="file"
-     multiple
-     onChange={handleUploadChange}
+     {...getInputProps({
+       accept: uploadConstraints?.all.join(","),
+     })}
+     data-testid="project-context-file-input"
    />
    ```
 
-   Replace it with the new block (note the `accept` attribute):
-
-   ```tsx
-   <input
-     type="file"
-     multiple
-     accept={uploadConstraints?.all.join(",") ?? ".pdf,.docx"}
-     onChange={handleUploadChange}
-   />
-   ```
-
-   This means:
-   - If we already fetched the constraints, we pass the exact list (`.pdf,.docx,...`) directly to the browser.
-   - If not yet loaded, we allow a small default set until the fetch completes.
+   The dropzone spread keeps the drag/drop behavior intact, and the `accept` option enforces the allowed extensions. If the constraints haven’t loaded yet, `accept` will be `undefined`, which is fine (browser falls back to any file).
 
 4. **Optional helper text (highly recommended)**
 
