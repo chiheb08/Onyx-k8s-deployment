@@ -196,19 +196,31 @@ This endpoint simply returns the dictionary from Step 1.
 
 ---
 
-## Step 5 – Update the Frontend Utilities
+## Step 5 – Update the Frontend Utilities (Super Detailed)
+
+You will touch two files:
+
+1. `web/src/lib/utils.ts` – shared helper functions.
+2. `web/src/app/chat/components/projects/ProjectContextPanel.tsx` – the UI that draws the file picker.
+
+None of this requires deep React knowledge. Follow the copy/paste blocks exactly.
+
+### 5.1 Replace the hard-coded image list
 
 **File:** `web/src/lib/utils.ts`
 
-Replace the hard-coded image array.
+Find the block near the top that looks like:
 
-**Old:**
 ```ts
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"] as const;
 ```
 
-**New (read from backend):**
+Delete that entire block and replace it with the new code below.
+
+**New code (place in the same spot):**
+
 ```ts
+// --- Upload constraints fetched from backend -----------------------
 export type UploadConstraints = {
   plain_text: string[];
   document: string[];
@@ -219,32 +231,107 @@ export type UploadConstraints = {
 let cachedConstraints: UploadConstraints | null = null;
 
 export async function fetchUploadConstraints(): Promise<UploadConstraints> {
-  if (cachedConstraints) return cachedConstraints;
-  const res = await fetch("/api/user/uploads/constraints");
-  if (!res.ok) throw new Error("Failed to load upload constraints");
-  cachedConstraints = await res.json();
+  if (cachedConstraints) {
+    return cachedConstraints;
+  }
+
+  const response = await fetch("/api/user/uploads/constraints");
+  if (!response.ok) {
+    throw new Error("Failed to load upload constraints");
+  }
+
+  cachedConstraints = (await response.json()) as UploadConstraints;
   return cachedConstraints;
 }
+// -------------------------------------------------------------------
 ```
 
-Then, in any component (example: `ProjectContextPanel.tsx`), load once and set the `accept` attribute. You can keep a fallback list while wiring up the hook.
+This gives us a reusable helper to retrieve the allowed extensions from the backend endpoint you created earlier.
 
-```tsx
-const [constraints, setConstraints] = useState<UploadConstraints | null>(null);
+### 5.2 Use the helper inside the upload UI
 
-useEffect(() => {
-  fetchUploadConstraints().then(setConstraints).catch(() => {
-    setConstraints({
-      plain_text: [".txt", ".md"],
-      document: [".pdf", ".docx"],
-      image: [".png", ".jpg"],
-      all: [".txt", ".md", ".pdf", ".docx", ".png", ".jpg"],
-    });
-  });
-}, []);
+**File:** `web/src/app/chat/components/projects/ProjectContextPanel.tsx`
 
-<input type="file" accept={constraints?.all.join(",") ?? ".pdf,.docx"} ... />
-```
+1. **Add imports at the top of the file**
+
+   Look for the other imports (React, hooks, etc.) and add the new ones:
+
+   ```diff
+   +import { useEffect, useState } from "react";
+   +import { fetchUploadConstraints, UploadConstraints } from "@/lib/utils";
+   ```
+
+2. **Add state + effect near the beginning of the component**
+
+   Inside `export function ProjectContextPanel(...) { ... }`, right after the existing `useState` / `useMemo` blocks, add:
+
+   ```ts
+   const [uploadConstraints, setUploadConstraints] = useState<UploadConstraints | null>(null);
+
+   useEffect(() => {
+     fetchUploadConstraints()
+       .then(setUploadConstraints)
+       .catch(() => {
+         // Fallback – in case the API call fails
+         setUploadConstraints({
+           plain_text: [".txt", ".md"],
+           document: [".pdf", ".docx"],
+           image: [".png", ".jpg"],
+           all: [".txt", ".md", ".pdf", ".docx", ".png", ".jpg"],
+         });
+       });
+   }, []);
+   ```
+
+3. **Update the `<input type="file">` element**
+
+   Find the existing file input in this component. It currently looks like:
+
+   ```tsx
+   <input
+     type="file"
+     multiple
+     onChange={handleUploadChange}
+   />
+   ```
+
+   Replace it with the new block (note the `accept` attribute):
+
+   ```tsx
+   <input
+     type="file"
+     multiple
+     accept={uploadConstraints?.all.join(",") ?? ".pdf,.docx"}
+     onChange={handleUploadChange}
+   />
+   ```
+
+   This means:
+   - If we already fetched the constraints, we pass the exact list (`.pdf,.docx,...`) directly to the browser.
+   - If not yet loaded, we allow a small default set until the fetch completes.
+
+4. **Optional helper text (highly recommended)**
+
+   Right under the input, you can show the list to the user:
+
+   ```tsx
+   {uploadConstraints && (
+     <p className="text-xs text-text-03 mt-1">
+       Allowed: {uploadConstraints.all.join(", ")}
+     </p>
+   )}
+   ```
+
+### Summary of frontend edits
+
+| File | Old | New |
+|------|-----|-----|
+| `web/src/lib/utils.ts` | `IMAGE_EXTENSIONS` constant | `fetchUploadConstraints()` helper |
+| `ProjectContextPanel.tsx` | No knowledge of allowed extensions | Fetch constraints via hook, set `accept`, show helper text |
+
+Once this is done, your UI will automatically match whatever is configured in the backend env vars. No manual sync needed. Guardrails:
+- If the endpoint fails, the fallback list keeps the UI usable.
+- If you later add this logic to other components (drag/drop, admin upload, etc.) just reuse `fetchUploadConstraints()`.
 
 ---
 
