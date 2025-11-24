@@ -4,6 +4,51 @@ Follow these steps exactly. Each step shows **where** to change the code, the **
 
 ---
 
+## Architecture Snapshot – How the Environment Variable Flows
+
+```mermaid
+flowchart LR
+    subgraph K8S["Kubernetes ConfigMap (05-configmap.yaml)"]
+        VAR["USER_FILE_ALLOWED_EXTENSIONS_*"]
+    end
+
+    subgraph Backend["Onyx Backend"]
+        CFG["allowed_extensions.py\n(lines 1-29)"]
+        EXTRACT["extract_file_text.py\n(lines 40-150)"]
+        API["server/features/projects/api.py\n(lines 120-230)"]
+    end
+
+    subgraph Frontend["Next.js Frontend"]
+        HOOK["fetchUploadConstraints()\n(utils.ts lines 80-140)"]
+        UI["ProjectContextPanel.tsx\n(lines 50-110)"]
+    end
+
+    VAR -->|env injected| CFG -->|ALLOWED_EXTENSIONS dict| EXTRACT
+    CFG --> API -->|GET /api/user/uploads/constraints| HOOK --> UI
+    UI -->|accept attr + validation| User
+```
+
+- **ConfigMap** defines the env vars.
+- **allowed_extensions.py** reads env vars once and exports `ALLOWED_EXTENSIONS`.
+- **extract_file_text.py** and `upload_user_files` import the same dict, so processing + validation stay in sync.
+- **GET /api/user/uploads/constraints** returns the dict to the frontend.
+- **Frontend utilities** fetch it once, then components build the `<input accept="...">` string and UI checks.
+
+### Quick Line Reference Table
+
+| File | Lines to edit | Purpose |
+|------|---------------|---------|
+| `backend/onyx/file_processing/allowed_extensions.py` | new file | Load env vars and expose `ALLOWED_EXTENSIONS`. |
+| `backend/onyx/file_processing/extract_file_text.py` | ~43-140 | Replace hard-coded lists + helper functions. |
+| `backend/onyx/server/features/projects/api.py` | ~120-250 | Validate uploads + add optional `/uploads/constraints`. |
+| `web/src/lib/utils.ts` | ~80-150 | Add `fetchUploadConstraints()` and remove `IMAGE_EXTENSIONS`. |
+| `web/src/app/chat/components/projects/ProjectContextPanel.tsx` | ~40-120 | Fetch constraints and wire to `<input accept>`. |
+| `manifests/05-configmap.yaml` | `data:` block | Set `USER_FILE_ALLOWED_EXTENSIONS_*` env vars. |
+
+Use these line ranges as anchors when applying the steps below.
+
+---
+
 ## Step 1 – Create a Shared Extension List (Backend)
 
 **File:** `backend/onyx/file_processing/allowed_extensions.py` (new file)
