@@ -378,3 +378,460 @@ Set up alerts when `api-server` service has 0 endpoints.
 
 **Primary action**: Ensure the API server pod is running and the service endpoint is healthy.
 
+---
+
+## Architecture Diagrams
+
+### How Onyx Should Work (Normal Flow)
+
+```
+                                    ONYX ARCHITECTURE - NORMAL OPERATION
+                                    =====================================
+
+    +------------------+
+    |                  |
+    |  User's Browser  |  <-- You open https://onyx.yourcompany.com
+    |                  |
+    +--------+---------+
+             |
+             | (1) HTTPS Request
+             |     "I want to chat"
+             v
+    +--------+---------+
+    |                  |
+    |  NGINX / Route   |  <-- Entry point (load balancer)
+    |   (Port 443)     |
+    +--------+---------+
+             |
+             | (2) Routes request to correct service
+             |
+             +------------------+------------------+
+             |                                     |
+             v                                     v
+    +--------+---------+                  +--------+---------+
+    |                  |                  |                  |
+    |   Web Server     |    (3) API Call  |   API Server     |
+    |   (Next.js)      | ---------------> |   (FastAPI)      |
+    |   Port 3000      |                  |   Port 8080      |
+    |                  | <--------------- |                  |
+    +--------+---------+    (4) Response  +--------+---------+
+             |                                     |
+             |                                     | (5) Database queries
+             |                                     |
+             |                            +--------v---------+
+             |                            |                  |
+             |                            |   PostgreSQL     |
+             |                            |   (Database)     |
+             |                            |                  |
+             |                            +------------------+
+             |
+             | (6) Rendered HTML + Data
+             v
+    +--------+---------+
+    |                  |
+    |  User's Browser  |  <-- User sees the chat interface
+    |                  |
+    +------------------+
+
+
+    STEP-BY-STEP (Normal):
+    =======================
+    1. User opens Onyx in browser
+    2. NGINX routes to Web Server
+    3. Web Server needs data, calls API Server
+    4. API Server returns data
+    5. API Server queries PostgreSQL if needed
+    6. Web Server sends complete page to browser
+    
+    Result: User sees working chat interface
+```
+
+---
+
+### What's Happening Now (Broken Flow)
+
+```
+                                    ONYX ARCHITECTURE - CURRENT PROBLEM
+                                    ====================================
+
+    +------------------+
+    |                  |
+    |  User's Browser  |
+    |                  |
+    +--------+---------+
+             |
+             | (1) HTTPS Request
+             v
+    +--------+---------+
+    |                  |
+    |  NGINX / Route   |  <-- OK
+    |                  |
+    +--------+---------+
+             |
+             | (2) Routes to Web Server
+             v
+    +--------+---------+                  +------------------+
+    |                  |                  |                  |
+    |   Web Server     |                  |   API Server     |
+    |   (Next.js)      |                  |   (FastAPI)      |
+    |                  |                  |                  |
+    |  Tries to call   |      X    X      |   DOWN or        |
+    |  API Server...   | ----X----X-----> |   UNREACHABLE    |
+    |                  |      X    X      |                  |
+    |  ECONNREFUSED!   |                  |   172.30.154.48  |
+    |                  |                  |   :8080          |
+    +--------+---------+                  +------------------+
+             |                                     
+             |                                     
+             | (3) Error! Can't get data!
+             v
+    +--------+---------+
+    |                  |
+    |  User's Browser  |  <-- User sees errors:
+    |                  |      - "Not authenticated"
+    |  "Something      |      - "Could not trace history"
+    |   went wrong"    |      - Page won't load properly
+    |                  |
+    +------------------+
+
+
+    WHAT'S BROKEN:
+    ==============
+    
+    Web Server tries to reach API Server at:
+    
+        http://172.30.154.48:8080
+              ^^^^^^^^^^^^^^^
+              This is the Kubernetes Service IP
+    
+    But gets:
+    
+        ECONNREFUSED = "Connection Refused"
+        
+    This means:
+        - The IP exists (it's a valid Service)
+        - But nothing is listening on port 8080
+        - The API Server pod is DOWN or NOT READY
+```
+
+---
+
+### The Connection Problem Visualized
+
+```
+                        THE BROKEN LINK
+                        ===============
+
+    +-------------+          +-------------+          +-------------+
+    |             |          |             |          |             |
+    |    WEB      |  ------> |   SERVICE   |  ------> |    API      |
+    |   SERVER    |          |  (K8s svc)  |          |   SERVER    |
+    |             |          |             |          |             |
+    +-------------+          +-------------+          +-------------+
+          |                        |                        |
+          |                        |                        |
+    Status: RUNNING          Status: EXISTS           Status: ???
+                                   |                        |
+                                   |                        |
+                             IP: 172.30.154.48              |
+                             Port: 8080                     |
+                                   |                        |
+                                   v                        v
+                             +----------+             +----------+
+                             | Endpoint |             |   Pod    |
+                             | List     |             |  Status  |
+                             +----------+             +----------+
+                                   |                        |
+                                   |                        |
+                             If EMPTY:                 Could be:
+                             No pods ready!            - CrashLoopBackOff
+                                                       - Pending
+                                                       - OOMKilled
+                                                       - ImagePullError
+
+
+    HOW KUBERNETES SERVICES WORK:
+    =============================
+    
+    1. Service has a stable IP (172.30.154.48)
+    2. Service forwards traffic to Pod IPs
+    3. If Pod is not ready, Service has no endpoints
+    4. Connection to Service IP is REFUSED
+    
+    
+         Web Server                Service                 Pod
+              |                       |                     |
+              |--- Connect to ------->|                     |
+              |    172.30.154.48:8080 |                     |
+              |                       |--- Forward to --X   |
+              |                       |    (no endpoints!)  |
+              |<-- ECONNREFUSED ------|                     |
+              |                       |                     |
+```
+
+---
+
+### What Should Happen vs What Is Happening
+
+```
+    +===========================================================================+
+    |                                                                           |
+    |                         EXPECTED vs ACTUAL                                |
+    |                                                                           |
+    +===========================================================================+
+
+    
+    EXPECTED (Working System):
+    --------------------------
+    
+    kubectl get pods
+    NAME                          READY   STATUS    
+    api-server-abc123             1/1     Running   <-- Pod is healthy
+    web-server-def456             1/1     Running   
+    
+    kubectl get endpoints api-server
+    NAME         ENDPOINTS
+    api-server   10.128.0.15:8080    <-- Has an endpoint (Pod IP)
+    
+    
+    Web Server                  Service                     Pod
+         |                         |                         |
+         |-- HTTP Request -------->|                         |
+         |                         |-- Forward to ---------->|
+         |                         |   10.128.0.15:8080      |
+         |                         |                         |
+         |                         |<-- Response ------------|
+         |<-- Response ------------|                         |
+         |                         |                         |
+    
+    Result: Everything works!
+    
+    
+    ============================================================================
+    
+    
+    ACTUAL (Broken System):
+    -----------------------
+    
+    kubectl get pods
+    NAME                          READY   STATUS    
+    api-server-abc123             0/1     CrashLoop  <-- Pod is NOT healthy
+    web-server-def456             1/1     Running   
+    
+    kubectl get endpoints api-server
+    NAME         ENDPOINTS
+    api-server   <none>              <-- NO endpoints!
+    
+    
+    Web Server                  Service                     Pod
+         |                         |                         |
+         |-- HTTP Request -------->|                         |
+         |                         |-- Forward to --X        |
+         |                         |   (no endpoints!)       |
+         |                         |                         |
+         |<-- ECONNREFUSED --------|                         |
+         |                         |                         |
+    
+    Result: All requests fail!
+```
+
+---
+
+### The Cascade of Errors
+
+```
+                            ERROR CASCADE
+                            =============
+    
+    
+                    +-------------------+
+                    |                   |
+                    |  API Server Down  |  <-- ROOT CAUSE
+                    |                   |
+                    +---------+---------+
+                              |
+                              | causes
+                              v
+                    +---------+---------+
+                    |                   |
+                    |  ECONNREFUSED     |  <-- ERROR 2
+                    |  172.30.154.48    |
+                    |                   |
+                    +---------+---------+
+                              |
+            +-----------------+-----------------+
+            |                 |                 |
+            v                 v                 v
+    +-------+-------+ +-------+-------+ +-------+-------+
+    |               | |               | |               |
+    | fetchSettings | | fetchAssist-  | | fetchUser     |
+    | SS() fails    | | antData fails | | fails         |
+    |               | |               | |               |
+    +-------+-------+ +-------+-------+ +-------+-------+
+            |                 |                 |
+            v                 v                 v
+    +-------+-------+ +-------+-------+ +-------+-------+
+    |               | |               | |               |
+    | Settings not  | | "Access       | | Auth state    |
+    | loaded        | | Denied"       | | confused      |
+    |               | |               | |               |
+    +-------+-------+ +-------+-------+ +-------+-------+
+            |                 |                 |
+            +--------+--------+--------+--------+
+                     |                 |
+                     v                 v
+             +-------+-------+ +-------+-------+
+             |               | |               |
+             | ERROR 4:      | | ERROR 1:      |
+             | "Not auth-    | | "Could not    |
+             | enticated"    | | trace chat    |
+             | but "logged   | | history"      |
+             | in"           | |               |
+             +---------------+ +---------------+
+
+
+    ONE PROBLEM = MANY SYMPTOMS
+    ===========================
+    
+    Fix the API Server, and ALL errors will disappear!
+```
+
+---
+
+### The Fix Visualized
+
+```
+                            THE SOLUTION
+                            ============
+
+
+    STEP 1: Diagnose
+    ----------------
+    
+    $ kubectl get pods -l app=api-server
+    
+    NAME                          READY   STATUS           
+    api-server-abc123             0/1     CrashLoopBackOff  <-- Problem found!
+    
+    
+    STEP 2: Investigate
+    -------------------
+    
+    $ kubectl logs api-server-abc123
+    
+    [Look for error messages]
+    - ImportError?          --> Missing dependency
+    - ConnectionError?      --> Can't reach database
+    - PermissionError?      --> File/volume issues
+    - MemoryError?          --> Need more RAM
+    
+    
+    STEP 3: Fix
+    -----------
+    
+    Common fixes:
+    
+    +------------------+--------------------------------+
+    | Problem          | Solution                       |
+    +------------------+--------------------------------+
+    | OOMKilled        | Increase memory limits         |
+    | ImagePullError   | Check image name/registry      |
+    | CrashLoopBackOff | Check logs, fix config         |
+    | Pending          | Check resources/node capacity  |
+    +------------------+--------------------------------+
+    
+    
+    STEP 4: Restart
+    ---------------
+    
+    $ kubectl rollout restart deployment/api-server
+    $ kubectl rollout status deployment/api-server
+    
+    Waiting for deployment "api-server" rollout to finish...
+    deployment "api-server" successfully rolled out  <-- Success!
+    
+    
+    STEP 5: Verify
+    --------------
+    
+    $ kubectl get pods -l app=api-server
+    
+    NAME                          READY   STATUS    
+    api-server-xyz789             1/1     Running   <-- Fixed!
+    
+    $ kubectl get endpoints api-server
+    
+    NAME         ENDPOINTS
+    api-server   10.128.0.20:8080    <-- Has endpoint now!
+    
+    $ kubectl exec deployment/web-server -- curl http://api-server:8080/health
+    
+    {"status": "ok"}  <-- Connection works!
+
+
+    RESULT:
+    =======
+    
+    +-------------+          +-------------+          +-------------+
+    |             |          |             |          |             |
+    |    WEB      |  ------> |   SERVICE   |  ------> |    API      |
+    |   SERVER    |    OK    |             |    OK    |   SERVER    |
+    |             |          |             |          |             |
+    +-------------+          +-------------+          +-------------+
+    
+    All errors disappear!
+    User can use Onyx normally!
+```
+
+---
+
+## Quick Reference Card
+
+```
++=========================================================================+
+|                                                                         |
+|                    QUICK TROUBLESHOOTING CARD                           |
+|                                                                         |
++=========================================================================+
+
+  ERROR YOU SEE                    WHAT IT MEANS
+  ============                     =============
+  
+  ECONNREFUSED                     API Server is down
+  
+  "Could not trace history"        Chat data broken (caused by above)
+  
+  "Not authenticated" +            Auth check failed (caused by above)
+  "User is logged in"
+  
+  404 for /mcp/servers             MCP not configured (ignore)
+
+
+  COMMANDS TO RUN                  WHAT TO LOOK FOR
+  ===============                  ================
+  
+  kubectl get pods                 STATUS should be "Running"
+                                   READY should be "1/1"
+  
+  kubectl get endpoints            Should show an IP:PORT
+  api-server                       NOT "<none>"
+  
+  kubectl logs                     Error messages explaining
+  -l app=api-server                why it crashed
+  
+  kubectl describe pod             Events section shows
+  -l app=api-server                what went wrong
+
+
+  THE FIX (90% of cases)
+  ======================
+  
+  1. kubectl logs -l app=api-server --tail=50
+  2. Fix the issue shown in logs
+  3. kubectl rollout restart deployment/api-server
+  4. kubectl rollout status deployment/api-server
+  5. Verify: kubectl get endpoints api-server
+
++=========================================================================+
+```
+
