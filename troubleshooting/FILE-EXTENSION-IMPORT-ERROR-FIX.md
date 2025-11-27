@@ -1,59 +1,66 @@
-# Fix: ImportError for ACCEPTED_IMAGE_FILE_EXTENSIONS
+# Fix: ImportError for ACCEPTED_*_FILE_EXTENSIONS
 
 ## The Error
 
 ```
 ImportError: cannot import name 'ACCEPTED_IMAGE_FILE_EXTENSIONS' from 'onyx.file_processing.extract_file_text'
+ImportError: cannot import name 'ALL_ACCEPTED_FILE_EXTENSIONS' from 'onyx.file_processing.extract_file_text'
+ImportError: cannot import name 'ACCEPTED_DOCUMENT_FILE_EXTENSIONS' from 'onyx.file_processing.extract_file_text'
 ```
 
 ---
 
-## Why This Happens
+## ALL Files That Need Updating
 
-If you applied the **file extension guide** changes (replacing hard-coded lists with environment variables), you removed the constants from `extract_file_text.py`.
-
-But other files still import those old constants, causing this error.
-
----
-
-## Exact Changes for `projects_file_utils.py`
-
-**File:** `backend/onyx/server/features/projects/projects_file_utils.py`
+| File | Old Imports |
+|------|-------------|
+| `backend/onyx/server/features/projects/projects_file_utils.py` | `ACCEPTED_IMAGE_FILE_EXTENSIONS`, `ALL_ACCEPTED_FILE_EXTENSIONS` |
+| `backend/onyx/connectors/google_drive/doc_conversion.py` | `ALL_ACCEPTED_FILE_EXTENSIONS` |
+| `backend/onyx/connectors/sharepoint/connector.py` | `ACCEPTED_IMAGE_FILE_EXTENSIONS` |
+| `backend/onyx/connectors/highspot/connector.py` | `ACCEPTED_DOCUMENT_FILE_EXTENSIONS`, `ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS` |
+| `backend/tests/daily/connectors/blob/test_blob_connector.py` | `ACCEPTED_DOCUMENT_FILE_EXTENSIONS`, `ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS` |
 
 ---
 
-### Change 1: Update Imports (Lines 11-12)
+## Mapping Table
 
-**OLD (Lines 11-12):**
+| Old Constant | New Equivalent |
+|--------------|----------------|
+| `ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS` | `ALLOWED_EXTENSIONS["plain_text"]` |
+| `ACCEPTED_DOCUMENT_FILE_EXTENSIONS` | `ALLOWED_EXTENSIONS["document"]` |
+| `ACCEPTED_IMAGE_FILE_EXTENSIONS` | `ALLOWED_EXTENSIONS["image"]` |
+| `ALL_ACCEPTED_FILE_EXTENSIONS` | `ALLOWED_EXTENSIONS["all"]` |
+
+---
+
+## Fix for Each File
+
+---
+
+### 1. `backend/onyx/server/features/projects/projects_file_utils.py`
+
+**Line 11-12 OLD:**
 ```python
 from onyx.file_processing.extract_file_text import ACCEPTED_IMAGE_FILE_EXTENSIONS
 from onyx.file_processing.extract_file_text import ALL_ACCEPTED_FILE_EXTENSIONS
 ```
 
-**NEW (Lines 11-12):**
+**Line 11 NEW:**
 ```python
 from onyx.file_processing.allowed_extensions import ALLOWED_EXTENSIONS
 ```
 
----
-
-### Change 2: Update Image Check (Line 135)
-
-**OLD (Line 135):**
+**Line 135 OLD:**
 ```python
 if extension in ACCEPTED_IMAGE_FILE_EXTENSIONS:
 ```
 
-**NEW (Line 135):**
+**Line 135 NEW:**
 ```python
 if extension in ALLOWED_EXTENSIONS["image"]:
 ```
 
----
-
-### Change 3: Update Document Check (Lines 153-156)
-
-**OLD (Lines 153-156):**
+**Lines 153-156 OLD:**
 ```python
 if (
     extension in ALL_ACCEPTED_FILE_EXTENSIONS
@@ -61,7 +68,7 @@ if (
 ):
 ```
 
-**NEW (Lines 153-156):**
+**Lines 153-156 NEW:**
 ```python
 if (
     extension in ALLOWED_EXTENSIONS["all"]
@@ -71,230 +78,133 @@ if (
 
 ---
 
-## Complete File After Changes
+### 2. `backend/onyx/connectors/google_drive/doc_conversion.py`
 
-Here is the full updated file for reference:
-
+**Line 32 OLD:**
 ```python
-from math import ceil
+from onyx.file_processing.extract_file_text import ALL_ACCEPTED_FILE_EXTENSIONS
+```
 
-from fastapi import UploadFile
-from PIL import Image
-from PIL import ImageOps
-from PIL import UnidentifiedImageError
-from pydantic import BaseModel
-from pydantic import ConfigDict
-from pydantic import Field
-
+**Line 32 NEW:**
+```python
 from onyx.file_processing.allowed_extensions import ALLOWED_EXTENSIONS
-from onyx.file_processing.extract_file_text import extract_file_text
-from onyx.file_processing.extract_file_text import get_file_ext
-from onyx.llm.factory import get_default_llms
-from onyx.natural_language_processing.utils import get_tokenizer
-from onyx.utils.logger import setup_logger
+```
 
+**Then replace all occurrences of:**
+```python
+ALL_ACCEPTED_FILE_EXTENSIONS
+```
 
-logger = setup_logger()
-FILE_TOKEN_COUNT_THRESHOLD = 50000
-UNKNOWN_FILENAME = "[unknown_file]"  # More descriptive than empty string
-
-
-def get_safe_filename(upload: UploadFile) -> str:
-    """Get filename from upload, with fallback to UNKNOWN_FILENAME if None."""
-    if not upload.filename:
-        logger.warning("Received upload with no filename")
-        return UNKNOWN_FILENAME
-    return upload.filename
-
-
-# Guard against extremely large images
-Image.MAX_IMAGE_PIXELS = 12000 * 12000
-
-
-class CategorizedFiles(BaseModel):
-    acceptable: list[UploadFile] = Field(default_factory=list)
-    non_accepted: list[str] = Field(default_factory=list)
-    unsupported: list[str] = Field(default_factory=list)
-    acceptable_file_to_token_count: dict[str, int] = Field(default_factory=dict)
-
-    # Allow FastAPI UploadFile instances
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-def _apply_long_side_cap(width: int, height: int, cap: int) -> tuple[int, int]:
-    if max(width, height) <= cap:
-        return width, height
-    scale = cap / max(width, height)
-    new_w = max(1, int(round(width * scale)))
-    new_h = max(1, int(round(height * scale)))
-    return new_w, new_h
-
-
-def _estimate_image_tokens(
-    width: int, height: int, patch_size: int, overhead: int
-) -> int:
-    patches_w = ceil(width / patch_size)
-    patches_h = ceil(height / patch_size)
-    patches = patches_w * patches_h
-    return patches + overhead
-
-
-def estimate_image_tokens_for_upload(
-    upload: UploadFile,
-    cap_long_side: int = 2048,
-    patch_size: int = 16,
-    overhead_tokens: int = 32,
-) -> int:
-    """Open the uploaded image, normalize orientation, cap long side, and estimate tokens.
-
-    Parameters
-    - cap_long_side: Maximum pixels allowed on the image's longer side before estimating.
-      Rationale: Many vision-language encoders downsample images so the longer side is
-      bounded (commonly around 1024–2048px). Capping avoids unbounded patch counts and
-      keeps costs predictable while preserving most semantic content for typical UI/docs.
-      Default 2048 is a balanced choice between fidelity and token cost.
-
-    - patch_size: The pixel size of square patches used in a rough ViT-style estimate.
-      Rationale: Modern vision backbones (e.g., ViT variants) commonly operate on 14–16px
-      patches. Using 16 simplifies the estimate and aligns with widely used configurations.
-      Each patch approximately maps to one visual token in this heuristic.
-
-    - overhead_tokens: Fixed per-image overhead to account for special tokens, metadata,
-      and prompt framing added by providers. Rationale: Real models add tens of tokens per
-      image beyond pure patch count. 32 is a conservative, stable default that avoids
-      undercounting.
-
-    Notes
-    - This is a heuristic estimation for budgeting and gating. Actual tokenization varies
-      by model/provider and may differ slightly.
-
-    Always resets the file pointer before returning.
-    """
-    try:
-        img = Image.open(upload.file)
-        img = ImageOps.exif_transpose(img)
-        width, height = img.size
-        capped_w, capped_h = _apply_long_side_cap(width, height, cap=cap_long_side)
-        return _estimate_image_tokens(
-            capped_w, capped_h, patch_size=patch_size, overhead=overhead_tokens
-        )
-    finally:
-        try:
-            upload.file.seek(0)
-        except Exception:
-            pass
-
-
-def categorize_uploaded_files(files: list[UploadFile]) -> CategorizedFiles:
-    """
-    Categorize uploaded files based on text extractability and tokenized length.
-
-    - Extracts text using extract_file_text for supported plain/document extensions.
-    - Uses default tokenizer to compute token length.
-    - If token length > 50,000, marked as non_accepted.
-    - If extension unsupported or text cannot be extracted, marked as unsupported.
-    - Otherwise marked as acceptable.
-    """
-
-    results = CategorizedFiles()
-    llm, _ = get_default_llms()
-
-    tokenizer = get_tokenizer(
-        model_name=llm.config.model_name, provider_type=llm.config.model_provider
-    )
-
-    for upload in files:
-        try:
-            filename = get_safe_filename(upload)
-            extension = get_file_ext(filename)
-
-            # If image, estimate tokens via dedicated method first
-            if extension in ALLOWED_EXTENSIONS["image"]:
-                try:
-                    token_count = estimate_image_tokens_for_upload(upload)
-                except (UnidentifiedImageError, OSError) as e:
-                    logger.warning(
-                        f"Failed to process image file '{filename}': {str(e)}"
-                    )
-                    results.unsupported.append(filename)
-                    continue
-
-                if token_count > FILE_TOKEN_COUNT_THRESHOLD:
-                    results.non_accepted.append(filename)
-                else:
-                    results.acceptable.append(upload)
-                    results.acceptable_file_to_token_count[filename] = token_count
-                continue
-
-            # Otherwise, handle as text/document: extract text and count tokens
-            if (
-                extension in ALLOWED_EXTENSIONS["all"]
-                and extension not in ALLOWED_EXTENSIONS["image"]
-            ):
-                text_content = extract_file_text(
-                    file=upload.file,
-                    file_name=filename,
-                    break_on_unprocessable=False,
-                    extension=extension,
-                )
-                if not text_content:
-                    logger.warning(f"No text content extracted from '{filename}'")
-                    results.unsupported.append(filename)
-                    continue
-
-                token_count = len(tokenizer.encode(text_content))
-                if token_count > FILE_TOKEN_COUNT_THRESHOLD:
-                    results.non_accepted.append(filename)
-                else:
-                    results.acceptable.append(upload)
-                    results.acceptable_file_to_token_count[filename] = token_count
-
-                # Reset file pointer for subsequent upload handling
-                try:
-                    upload.file.seek(0)
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to reset file pointer for '{filename}': {str(e)}"
-                    )
-                continue
-
-            # If not recognized as supported types above, mark unsupported
-            logger.warning(
-                f"Unsupported file extension '{extension}' for file '{filename}'"
-            )
-            results.unsupported.append(filename)
-        except Exception as e:
-            logger.warning(
-                f"Failed to process uploaded file '{get_safe_filename(upload)}' (error_type={type(e).__name__}, error={str(e)})"
-            )
-            results.unsupported.append(get_safe_filename(upload))
-
-    return results
+**With:**
+```python
+ALLOWED_EXTENSIONS["all"]
 ```
 
 ---
 
-## Summary of Changes
+### 3. `backend/onyx/connectors/sharepoint/connector.py`
 
-| Location | Old | New |
-|----------|-----|-----|
-| Line 11 | `from ... import ACCEPTED_IMAGE_FILE_EXTENSIONS` | `from ... import ALLOWED_EXTENSIONS` |
-| Line 12 | `from ... import ALL_ACCEPTED_FILE_EXTENSIONS` | (removed - merged into line 11) |
-| Line 135 | `ACCEPTED_IMAGE_FILE_EXTENSIONS` | `ALLOWED_EXTENSIONS["image"]` |
-| Line 154 | `ALL_ACCEPTED_FILE_EXTENSIONS` | `ALLOWED_EXTENSIONS["all"]` |
-| Line 155 | `ACCEPTED_IMAGE_FILE_EXTENSIONS` | `ALLOWED_EXTENSIONS["image"]` |
+**Line 57 OLD:**
+```python
+from onyx.file_processing.extract_file_text import ACCEPTED_IMAGE_FILE_EXTENSIONS
+```
+
+**Line 57 NEW:**
+```python
+from onyx.file_processing.allowed_extensions import ALLOWED_EXTENSIONS
+```
+
+**Then replace all occurrences of:**
+```python
+ACCEPTED_IMAGE_FILE_EXTENSIONS
+```
+
+**With:**
+```python
+ALLOWED_EXTENSIONS["image"]
+```
 
 ---
 
-## Quick Fix (If You Don't Want Env Vars Yet)
+### 4. `backend/onyx/connectors/highspot/connector.py`
 
-If you just want to restore the old behavior temporarily, add the constants back to `extract_file_text.py`:
+**Lines 26-27 OLD:**
+```python
+from onyx.file_processing.extract_file_text import ACCEPTED_DOCUMENT_FILE_EXTENSIONS
+from onyx.file_processing.extract_file_text import ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS
+```
+
+**Line 26 NEW (delete line 27):**
+```python
+from onyx.file_processing.allowed_extensions import ALLOWED_EXTENSIONS
+```
+
+**Then replace:**
+- `ACCEPTED_DOCUMENT_FILE_EXTENSIONS` → `ALLOWED_EXTENSIONS["document"]`
+- `ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS` → `ALLOWED_EXTENSIONS["plain_text"]`
+
+---
+
+### 5. `backend/tests/daily/connectors/blob/test_blob_connector.py`
+
+**Lines 14-15 OLD:**
+```python
+from onyx.file_processing.extract_file_text import ACCEPTED_DOCUMENT_FILE_EXTENSIONS
+from onyx.file_processing.extract_file_text import ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS
+```
+
+**Line 14 NEW (delete line 15):**
+```python
+from onyx.file_processing.allowed_extensions import ALLOWED_EXTENSIONS
+```
+
+**Then replace:**
+- `ACCEPTED_DOCUMENT_FILE_EXTENSIONS` → `ALLOWED_EXTENSIONS["document"]`
+- `ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS` → `ALLOWED_EXTENSIONS["plain_text"]`
+
+---
+
+## EASIEST FIX: Restore Old Constants
+
+If you don't want to update all these files, just **add the constants back** to `extract_file_text.py`:
+
+**File:** `backend/onyx/file_processing/extract_file_text.py`
+
+**Add these lines around line 43 (after the imports):**
 
 ```python
-# Add these back at the top of extract_file_text.py (around line 43)
-ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS = [".txt", ".md", ".mdx", ".conf", ".log", ".json", ".csv", ".tsv", ".xml", ".yml", ".yaml", ".sql"]
-ACCEPTED_DOCUMENT_FILE_EXTENSIONS = [".pdf", ".docx", ".pptx", ".xlsx", ".eml", ".epub", ".html"]
-ACCEPTED_IMAGE_FILE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"]
+ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS = [
+    ".txt",
+    ".md",
+    ".mdx",
+    ".conf",
+    ".log",
+    ".json",
+    ".csv",
+    ".tsv",
+    ".xml",
+    ".yml",
+    ".yaml",
+    ".sql",
+]
+
+ACCEPTED_DOCUMENT_FILE_EXTENSIONS = [
+    ".pdf",
+    ".docx",
+    ".pptx",
+    ".xlsx",
+    ".eml",
+    ".epub",
+    ".html",
+]
+
+ACCEPTED_IMAGE_FILE_EXTENSIONS = [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+]
+
 ALL_ACCEPTED_FILE_EXTENSIONS = (
     ACCEPTED_PLAIN_TEXT_FILE_EXTENSIONS
     + ACCEPTED_DOCUMENT_FILE_EXTENSIONS
@@ -302,4 +212,17 @@ ALL_ACCEPTED_FILE_EXTENSIONS = (
 )
 ```
 
-This restores the old behavior without needing environment variables.
+**This is the fastest fix - no other files need to change!**
+
+---
+
+## Summary
+
+**Two options:**
+
+| Option | What to do | Files to change |
+|--------|------------|-----------------|
+| **A (Easy)** | Add constants back to `extract_file_text.py` | 1 file |
+| **B (Full)** | Update all imports to use `ALLOWED_EXTENSIONS` | 5 files |
+
+**Recommendation:** Use Option A (Easy) for now. You can always do the full migration later.
