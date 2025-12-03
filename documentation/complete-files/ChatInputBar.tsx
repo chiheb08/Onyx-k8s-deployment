@@ -397,7 +397,7 @@ function ChatInputBarInner({
               href="/chat/input-prompts"
             >
               <FiPlus size={17} />
-              <p>Create a new prompt</p>
+              <p>Neuen Prompt erstellen</p>
             </a>
           </div>
         </div>
@@ -437,10 +437,10 @@ function ChatInputBarInner({
           aria-multiline
           placeholder={
             selectedAssistant.id === 0
-              ? `How can ${
+              ? `Womit kann ${
                   settings?.enterpriseSettings?.application_name || "Onyx"
-                } help you today`
-              : `How can ${selectedAssistant.name} help you today`
+                } Ihnen heute helfen`
+              : `Womit kann ${selectedAssistant.name} Ihnen heute helfen`
           }
           value={message}
           onKeyDown={(event) => {
@@ -500,7 +500,7 @@ function ChatInputBarInner({
                     toggleDocumentSidebar();
                   }}
                   icon={<FileIcon size={16} />}
-                  title={`${selectedDocuments.length} selected`}
+                  title={`${selectedDocuments.length} ausgewählt`}
                   onRemove={removeDocs}
                 />
               )}
@@ -539,7 +539,7 @@ function ChatInputBarInner({
                 folded
                 action
               >
-                Deep Research
+                Tiefe Recherche
               </SelectButton>
             )}
 
@@ -599,7 +599,7 @@ function ChatInputBarInner({
                 </TooltipTrigger>
                 {hasProcessingFiles && (
                   <TooltipContent side="top" align="center">
-                    Files are still processing. Please wait before sending.
+                    Dateien werden noch verarbeitet. Bitte warten Sie, bevor Sie senden.
                   </TooltipContent>
                 )}
               </Tooltip>
