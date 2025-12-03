@@ -25,48 +25,16 @@
 
 ---
 
-### **Step 2: Add Import Statement**
+### **Step 2: Verify Import Statement**
 
 **📍 WHERE TO FIND IT:**
-- Look at the **very top of the file** (lines 1-30)
-- You'll see import statements like:
-  ```python
-  import contextlib
-  import datetime
-  import time
-  from collections.abc import Generator
-  ```
-
-**✏️ WHAT TO CHANGE:**
-
-**--- OLD ---**
-```python
-import contextlib
-import datetime
-import time
-from collections.abc import Generator
-from uuid import UUID
-```
-
-**--- NEW ---**
-```python
-import contextlib
-import datetime
-import time
-from collections.abc import Generator
-from time import sleep  # ← ADD THIS LINE
-from uuid import UUID
-```
-
-**📝 DETAILED INSTRUCTIONS:**
-1. Find the line that says `import time` (around line 3)
-2. Right after that line, add a new line
-3. Type: `from time import sleep`
-4. Make sure the indentation matches the other imports (no extra spaces)
+- Look at the **very top of the file** (lines 1-10)
+- You should see: `import time` (around line 3)
 
 **✅ VERIFICATION:**
-- You should now have both `import time` and `from time import sleep` in your imports
-- The `sleep` function will be used to add delays
+- Check that `import time` exists at the top of the file
+- We'll use `time.sleep()` in the code (the `time` module is already imported)
+- **No changes needed here** - the import already exists!
 
 ---
 
@@ -277,8 +245,8 @@ def post_index(
 
 After making changes, verify:
 
-- [ ] ✅ Import `sleep` is added at the top
-- [ ] ✅ First loop calculates delay and calls `sleep(delay)`
+- [ ] ✅ `import time` exists at the top (already there, no change needed)
+- [ ] ✅ First loop calculates delay and calls `time.sleep(delay)`
 - [ ] ✅ Second loop marks files as COMPLETED (unchanged)
 - [ ] ✅ Code indentation is correct (4 spaces, matches surrounding code)
 - [ ] ✅ No syntax errors (check for missing colons, parentheses, etc.)
@@ -305,9 +273,9 @@ After implementing, test:
 
 ## 🐛 Troubleshooting
 
-### **Error: "sleep is not defined"**
-- **Problem:** Import not added correctly
-- **Fix:** Make sure `from time import sleep` is at the top of the file
+### **Error: "sleep is not defined" or "time is not defined"**
+- **Problem:** `time` module not imported
+- **Fix:** Make sure `import time` exists at the top of the file (around line 3)
 
 ### **Error: "IndentationError"**
 - **Problem:** Wrong indentation
@@ -326,7 +294,7 @@ After implementing, test:
 ## 📝 Summary
 
 **What we changed:**
-1. ✅ Added `from time import sleep` import
+1. ✅ Verified `import time` exists (already in file, no change needed)
 2. ✅ Added delay calculation loop before marking as COMPLETED
 3. ✅ Delay adapts to file size (more chunks = longer delay)
 
@@ -355,13 +323,14 @@ After implementing, test:
 **File:** `onyx-repo/backend/onyx/indexing/adapters/user_file_indexing_adapter.py`
 
 **Line Numbers (approximate):**
-- **Line 3-4:** Add import
+- **Line 3:** Verify `import time` exists (no change needed)
 - **Line 208-220:** Add delay logic (before marking COMPLETED)
 
 **Key Changes:**
-1. Import: `from time import sleep`
+1. Verify import: `import time` (already exists)
 2. Add delay loop before COMPLETED loop
 3. Delay formula: `min(0.5 + (chunk_count * 0.02), 3.0)`
+4. Use `time.sleep(delay)` to wait
 
 ---
 
