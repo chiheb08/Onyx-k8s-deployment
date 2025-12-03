@@ -146,7 +146,7 @@
             f"Waiting {delay:.2f}s for Vespa index update before marking file {user_file.id} "
             f"as COMPLETED (chunk_count={chunk_count})"
         )
-        sleep(delay)
+        time.sleep(delay)
     
     # Now mark files as COMPLETED (Vespa index should be updated by now)
     for user_file in user_files:
@@ -215,7 +215,7 @@ def post_index(
             f"Waiting {delay:.2f}s for Vespa index update before marking file {user_file.id} "
             f"as COMPLETED (chunk_count={chunk_count})"
         )
-        sleep(delay)
+        time.sleep(delay)
     
     # Now mark files as COMPLETED (Vespa index should be updated by now)
     for user_file in user_files:
