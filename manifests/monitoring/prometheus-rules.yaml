@@ -1,0 +1,72 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: onyx-alerts
+  namespace: onyx  # Change to your Onyx namespace
+  labels:
+    app: onyx
+spec:
+  groups:
+    - name: onyx.rules
+      interval: 30s
+      rules:
+        # High error rate
+        - alert: OnyxHighErrorRate
+          expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Onyx API has high error rate"
+            description: "Error rate is {{ $value | humanizePercentage }}"
+
+        # Queue backlog
+        - alert: OnyxQueueBacklog
+          expr: celery_queue_length{queue_name="user_file_processing"} > 100
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Celery queue has high backlog"
+            description: "Queue {{ $labels.queue_name }} has {{ $value }} pending tasks"
+
+        # Worker down
+        - alert: OnyxWorkerDown
+          expr: up{job="celery-worker"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Celery worker is down"
+            description: "Worker {{ $labels.instance }} is not responding"
+
+        # High memory usage
+        - alert: OnyxHighMemoryUsage
+          expr: container_memory_working_set_bytes{pod=~"onyx-.*"} / container_spec_memory_limit_bytes > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod has high memory usage"
+            description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} memory"
+
+        # Model server slow
+        - alert: OnyxModelServerSlow
+          expr: histogram_quantile(0.95, embedding_duration_seconds_bucket) > 2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Model server is slow"
+            description: "P95 embedding latency is {{ $value }}s"
+
+        # Database connections high
+        - alert: OnyxDatabaseConnectionsHigh
+          expr: pg_stat_database_numbackends > 80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Database has high connection count"
+            description: "{{ $value }} database connections in use"
+
