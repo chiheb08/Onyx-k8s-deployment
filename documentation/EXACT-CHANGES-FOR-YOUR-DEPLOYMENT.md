@@ -390,3 +390,4 @@ Line 238:         user_file.status = UserFileStatus.COMPLETED
 
 **That's it!** After these changes, your function will wait and verify before marking files as COMPLETED, which should fix the intermittent first prompt issue.
 
+

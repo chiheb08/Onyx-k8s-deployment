@@ -375,3 +375,4 @@ The issue is **NOT a timing/race condition**. It's a **query rewriting problem**
 
 **The fix:** Skip query rewriting for user file searches and use the original query directly. This ensures consistent, reliable results on the first attempt.
 
+

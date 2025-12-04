@@ -474,3 +474,4 @@ post_index function:
 
 **That's it!** The function is now more robust and will verify chunks are searchable before marking files as COMPLETED.
 
+

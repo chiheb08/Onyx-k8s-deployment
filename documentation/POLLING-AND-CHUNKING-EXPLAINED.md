@@ -527,3 +527,4 @@ def process_file_incrementally(file_id: UUID):
 2. **SSE Updates** - Server pushes updates (zero checks)
 3. **Incremental Processing** - Make chunks available as ready (fast first chunk)
 
+

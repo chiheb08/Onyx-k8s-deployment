@@ -825,3 +825,4 @@ if user_file_ids and len(retrieved_docs) == 0:
 
 **That's it!** The function now retries up to 3 times with increasing delays, which should significantly improve the success rate for finding documents on the first prompt.
 
+

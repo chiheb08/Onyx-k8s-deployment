@@ -183,3 +183,4 @@ Celery Workers (async):
 - Network security via NGINX (TLS), in-cluster NetworkPolicies, and service DNS.
 - Data separation: every query is filtered by user/org; results and history are isolated per tenant.
 - Replace Ollama with vLLM: vLLM is the LLM inference server for text generation.
+

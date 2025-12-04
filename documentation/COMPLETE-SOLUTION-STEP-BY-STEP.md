@@ -387,3 +387,4 @@ After implementing both fixes, verify:
 
 That's it! Follow these steps and both issues will be fixed. 🎉
 
+

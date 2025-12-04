@@ -218,3 +218,4 @@ All documentation is available in:
 **Result:**
 Users can no longer type or send messages while files are processing, preventing errors and improving UX. The system now matches best practices from leading platforms like ChatGPT and Claude.
 
+
