@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-This guide shows **exactly what to modify** in your Kubernetes manifests to access the Vespa admin UI.
+This guide shows **exactly what to modify** in your Kubernetes manifests **and Docker Compose** to access the Vespa admin UI.
 
 ---
 
@@ -391,6 +391,340 @@ echo "Vespa UI: http://${NODE_IP}:30190"
 
 ---
 
+## 🐳 Docker Compose - Local Deployment
+
+### Current Situation
+
+**In `docker-compose.yml`:**
+- Vespa ports are **commented out** (not exposed)
+- Service name: `index`
+- Ports: `19071` (config), `8081` (query)
+
+**Problem**: Cannot access Vespa UI from host machine.
+
+---
+
+## ✅ Docker Compose Solutions
+
+### Option 1: Use Development Override File (Easiest)
+
+**File**: `onyx-repo/deployment/docker_compose/docker-compose.dev.yml` (already exists!)
+
+This file already exposes Vespa ports for development.
+
+**Step 1: Start with dev override**
+
+```bash
+cd /Users/chihebmhamdi/Desktop/onyx/onyx-repo/deployment/docker_compose
+
+# Start with dev override (exposes ports)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Or set environment variable
+export COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
+docker compose up -d
+```
+
+**Step 2: Access Vespa UI**
+
+```bash
+# Vespa Admin UI
+http://localhost:19071
+
+# Vespa Query API
+http://localhost:8081
+```
+
+**What's in `docker-compose.dev.yml`:**
+```yaml
+services:
+  index:
+    ports:
+      - "19071:19071"  # Admin UI
+      - "8081:8081"    # Query API
+```
+
+**Pros:**
+- ✅ No changes to main compose file
+- ✅ Already configured
+- ✅ Easy to enable/disable
+
+**Cons:**
+- ❌ Need to remember to use both files
+
+---
+
+### Option 2: Uncomment Ports in Main Compose File
+
+**File**: `onyx-repo/deployment/docker_compose/docker-compose.yml`
+
+**Step 1: Edit the file**
+
+Find the `index` service (around line 263) and uncomment the ports:
+
+```yaml
+  index:
+    image: vespaengine/vespa:8.526.15
+    restart: unless-stopped
+    environment:
+      - VESPA_SKIP_UPGRADE_CHECK=${VESPA_SKIP_UPGRADE_CHECK:-true}
+    # Uncomment these lines:
+    ports:
+      - "19071:19071"
+      - "8081:8081"
+    volumes:
+      - vespa_volume:/opt/vespa/var
+```
+
+**Step 2: Restart services**
+
+```bash
+cd /Users/chihebmhamdi/Desktop/onyx/onyx-repo/deployment/docker_compose
+
+# Restart Vespa container
+docker compose restart index
+
+# Or restart all
+docker compose down
+docker compose up -d
+```
+
+**Step 3: Access Vespa UI**
+
+```bash
+# Vespa Admin UI
+http://localhost:19071
+
+# Vespa Query API
+http://localhost:8081
+```
+
+**Pros:**
+- ✅ Simple - just uncomment
+- ✅ Works with standard `docker compose up`
+
+**Cons:**
+- ❌ Modifies main compose file
+- ❌ Ports always exposed (even in production)
+
+---
+
+### Option 3: Create Custom Override File
+
+**File**: `onyx-repo/deployment/docker_compose/docker-compose.vespa-ui.yml` (new file)
+
+**Step 1: Create override file**
+
+```bash
+cd /Users/chihebmhamdi/Desktop/onyx/onyx-repo/deployment/docker_compose
+
+cat > docker-compose.vespa-ui.yml << 'EOF'
+# Vespa UI Override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.vespa-ui.yml up -d
+
+services:
+  index:
+    ports:
+      - "19071:19071"  # Vespa Admin UI
+      - "8081:8081"    # Vespa Query API
+EOF
+```
+
+**Step 2: Start with override**
+
+```bash
+# Start with Vespa UI override
+docker compose -f docker-compose.yml -f docker-compose.vespa-ui.yml up -d
+
+# Access UI
+http://localhost:19071
+```
+
+**Pros:**
+- ✅ Doesn't modify existing files
+- ✅ Can be version controlled
+- ✅ Easy to enable/disable
+
+**Cons:**
+- ❌ Need to remember to use both files
+
+---
+
+### Option 4: Use Docker Port Forward (No Changes)
+
+**No compose file changes needed!**
+
+**Step 1: Find container name**
+
+```bash
+# Get Vespa container name
+docker ps | grep vespa
+
+# Or
+docker compose ps | grep index
+```
+
+**Step 2: Port forward**
+
+```bash
+# Port forward (replace <container-name> with actual name)
+docker port <container-name> 19071
+
+# Or use docker exec to access directly
+docker exec -it <container-name> curl http://localhost:19071
+```
+
+**Step 3: Access via port forward**
+
+```bash
+# If you need external access, use socat or similar
+# Or just access from within container
+docker exec -it <container-name> bash
+# Then: curl http://localhost:19071
+```
+
+**Pros:**
+- ✅ No compose file changes
+- ✅ Secure (container-only access)
+
+**Cons:**
+- ❌ Not ideal for browser access
+- ❌ Requires additional tools
+
+---
+
+## 🚀 Quick Start: Docker Compose
+
+### Recommended: Use Dev Override
+
+```bash
+cd /Users/chihebmhamdi/Desktop/onyx/onyx-repo/deployment/docker_compose
+
+# Start with dev override (exposes Vespa ports)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Wait for Vespa to be ready (may take 1-2 minutes)
+docker compose logs -f index
+
+# Access Vespa UI
+open http://localhost:19071
+# Or
+curl http://localhost:19071
+```
+
+### Verify Vespa is Running
+
+```bash
+# Check container status
+docker compose ps index
+
+# Check logs
+docker compose logs index | tail -20
+
+# Test health endpoint
+curl http://localhost:19071/state/v1/health
+```
+
+**Expected Response:**
+```json
+{
+  "status": {
+    "code": "up"
+  }
+}
+```
+
+---
+
+## 📋 Docker Compose Summary
+
+### What You Need to Do
+
+**Option 1 (Recommended): Use existing dev override**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# Access: http://localhost:19071
+```
+
+**Option 2: Uncomment ports in main file**
+- Edit `docker-compose.yml`
+- Uncomment ports section for `index` service
+- Restart: `docker compose restart index`
+- Access: `http://localhost:19071`
+
+**Option 3: Create custom override**
+- Create `docker-compose.vespa-ui.yml`
+- Start: `docker compose -f docker-compose.yml -f docker-compose.vespa-ui.yml up -d`
+- Access: `http://localhost:19071`
+
+### Ports Exposed
+
+| Port | Service | Access URL |
+|------|---------|------------|
+| `19071` | Vespa Admin UI | `http://localhost:19071` |
+| `8081` | Vespa Query API | `http://localhost:8081` |
+
+---
+
+## 🔍 Troubleshooting Docker Compose
+
+### Port Already in Use
+
+**Error**: `Bind for 0.0.0.0:19071 failed: port is already allocated`
+
+**Solution**:
+```bash
+# Find what's using the port
+lsof -i :19071
+# Or
+netstat -an | grep 19071
+
+# Kill the process or change port in compose file
+# Change to: "19072:19071" (host:container)
+```
+
+### Vespa Not Starting
+
+**Check logs**:
+```bash
+docker compose logs index
+```
+
+**Common issues**:
+- Insufficient memory (Vespa needs at least 2GB)
+- Port conflicts
+- Volume permissions
+
+**Fix**:
+```bash
+# Restart Vespa
+docker compose restart index
+
+# Or recreate
+docker compose up -d --force-recreate index
+```
+
+### Can't Access UI
+
+**Verify ports are exposed**:
+```bash
+# Check if ports are mapped
+docker compose ps index
+
+# Should show: 0.0.0.0:19071->19071/tcp
+```
+
+**Test from container**:
+```bash
+# Access container
+docker compose exec index bash
+
+# Test from inside
+curl http://localhost:19071/state/v1/health
+```
+
+---
+
 **Last Updated**: 2024  
-**Version**: 1.0
+**Version**: 1.1 (Added Docker Compose section)
 
