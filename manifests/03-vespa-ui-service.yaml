@@ -1,0 +1,95 @@
+# ============================================================================
+# Vespa UI Service - External Access
+# ============================================================================
+# This service exposes Vespa admin UI (port 19071) for external access
+# Choose ONE of the following options based on your needs:
+# 
+# Option 1: NodePort (Access via <node-ip>:<node-port>)
+# Option 2: LoadBalancer (Cloud provider assigns external IP)
+# Option 3: Ingress (Access via domain name)
+# ============================================================================
+
+---
+# OPTION 1: NodePort Service (Recommended for Development/Testing)
+# Access: http://<node-ip>:<node-port>
+# Example: http://192.168.1.100:30190
+apiVersion: v1
+kind: Service
+metadata:
+  name: vespa-ui-service
+  namespace: onyx-infra  # Change to your namespace
+  labels:
+    app: vespa
+    component: ui
+spec:
+  type: NodePort
+  ports:
+    - name: config-ui
+      port: 19071
+      targetPort: 19071
+      nodePort: 30190  # External port (30000-32767 range)
+      protocol: TCP
+    - name: query-ui
+      port: 8081
+      targetPort: 8081
+      nodePort: 30191  # External port for query API
+      protocol: TCP
+  selector:
+    app: vespa
+
+---
+# OPTION 2: LoadBalancer Service (Recommended for Cloud Deployments)
+# Access: http://<external-ip>:19071
+# Uncomment this section and comment out Option 1 if using LoadBalancer
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: vespa-ui-service
+#   namespace: onyx-infra  # Change to your namespace
+#   labels:
+#     app: vespa
+#     component: ui
+# spec:
+#   type: LoadBalancer
+#   ports:
+#     - name: config-ui
+#       port: 19071
+#       targetPort: 19071
+#       protocol: TCP
+#     - name: query-ui
+#       port: 8081
+#       targetPort: 8081
+#       protocol: TCP
+#   selector:
+#     app: vespa
+
+---
+# OPTION 3: Ingress (Recommended for Production with Domain)
+# Access: http://vespa-ui.yourdomain.com
+# Requires: Ingress controller (NGINX, Traefik, etc.)
+# Uncomment this section if using Ingress
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: vespa-ui-ingress
+#   namespace: onyx-infra  # Change to your namespace
+#   annotations:
+#     # For NGINX Ingress Controller
+#     nginx.ingress.kubernetes.io/rewrite-target: /
+#     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+#     # For Traefik
+#     # traefik.ingress.kubernetes.io/rule-type: PathPrefix
+# spec:
+#   ingressClassName: nginx  # Change to your ingress class
+#   rules:
+#     - host: vespa-ui.yourdomain.com  # Change to your domain
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: vespa-ui-service  # References the NodePort/LoadBalancer service above
+#                 port:
+#                   number: 19071
+
