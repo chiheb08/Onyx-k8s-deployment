@@ -1189,6 +1189,400 @@ kubectl exec -it vespa-0 -n onyx-infra -- whoami
 
 ---
 
+## 📖 Glossary: Technical Terms Explained
+
+This glossary explains all technical terms used in this guide, especially those related to NFS, storage, and Vespa.
+
+---
+
+### A
+
+**Access Time (atime)**
+- **Definition**: A file attribute that records when a file was last read or accessed
+- **Example**: If you open a file at 2:00 PM, the access time is updated to 2:00 PM
+- **Why it matters**: Updating access time requires a write operation, which slows down NFS reads
+- **Related**: `noatime`, `nodiratime`
+
+**Attribute Cache (actimeo)**
+- **Definition**: A temporary storage in memory that remembers file information (size, permissions, etc.) to avoid repeated network calls
+- **Analogy**: Like remembering someone's phone number instead of looking it up every time
+- **Why it matters**: Reduces network calls to NFS server, making operations faster
+- **Default**: Usually 60 seconds
+
+---
+
+### B
+
+**Buffer**
+- **Definition**: A temporary storage area in memory used to hold data before it's processed or sent
+- **Analogy**: Like a bucket used to carry water - bigger bucket = fewer trips
+- **Types**:
+  - **Read Buffer (rsize)**: How much data to read from NFS at once
+  - **Write Buffer (wsize)**: How much data to write to NFS at once
+- **Why it matters**: Larger buffers = fewer network calls = faster operations
+- **Example**: 1MB buffer reads 1MB in one go, while 8KB buffer needs 128 reads for 1MB
+
+**Byte**
+- **Definition**: The smallest unit of digital data storage (8 bits)
+- **Units**:
+  - 1 KB (Kilobyte) = 1,024 bytes
+  - 1 MB (Megabyte) = 1,024 KB = 1,048,576 bytes
+  - 1 GB (Gigabyte) = 1,024 MB
+- **Example**: The letter "A" is 1 byte, a small text file might be 1 KB
+
+---
+
+### C
+
+**CPU (Central Processing Unit)**
+- **Definition**: The "brain" of a computer that processes instructions and performs calculations
+- **Analogy**: Like the engine of a car - more powerful engine = faster car
+- **Units**: Measured in cores or millicores (m)
+  - 1000m = 1 core
+  - 2000m = 2 cores
+- **Why it matters**: More CPU = faster processing of NFS operations
+
+**Connection-Oriented**
+- **Definition**: A type of network communication where a connection is established before data is sent
+- **Example**: TCP is connection-oriented (like a phone call - you dial first, then talk)
+- **Opposite**: Connectionless (like UDP - like sending a postcard)
+
+---
+
+### D
+
+**Decisecond**
+- **Definition**: One-tenth of a second (0.1 seconds)
+- **Conversion**: 
+  - 1 second = 10 deciseconds
+  - 60 seconds = 600 deciseconds
+- **Why it matters**: NFS timeouts are measured in deciseconds
+- **Example**: `timeo=600` means 60 seconds timeout
+
+**Directory**
+- **Definition**: A folder that contains files and other directories
+- **Analogy**: Like a filing cabinet drawer that holds folders
+- **Example**: `/opt/vespa/var` is a directory
+- **Related**: Temporary directory, mount directory
+
+**Dynamic Provisioning**
+- **Definition**: Automatic creation of storage volumes when needed
+- **Analogy**: Like an automatic vending machine that creates items on demand
+- **Opposite**: Static provisioning (manually creating volumes)
+- **Why it matters**: Determines where mount options are configured (StorageClass vs PV)
+
+---
+
+### E
+
+**Export (NFS Export)**
+- **Definition**: A directory on the NFS server that is shared and accessible over the network
+- **Analogy**: Like a shared folder on a network drive
+- **Example**: `/exports/vespa` is an NFS export path
+- **Configuration**: Set on the NFS server to define what directories are shared
+
+---
+
+### F
+
+**File Locking**
+- **Definition**: A mechanism that prevents multiple processes from modifying the same file simultaneously
+- **Analogy**: Like a "Do Not Disturb" sign on a hotel room door
+- **Types**:
+  - **Shared Lock**: Multiple processes can read, but not write
+  - **Exclusive Lock**: Only one process can access the file
+- **Why it matters**: Prevents data corruption when multiple processes access the same file
+- **NFS Issue**: NFS file locking can be unreliable, especially in NFSv3
+
+**Fusion (Vespa Fusion)**
+- **Definition**: The process of merging multiple index files into one optimized index
+- **Analogy**: Like consolidating multiple filing cabinets into one organized cabinet
+- **Purpose**: Improves search performance and reduces disk space
+- **Process**: Creates temporary directory → merges files → replaces old files → cleans up
+
+---
+
+### H
+
+**Hard Mount**
+- **Definition**: An NFS mount option that keeps retrying operations if the NFS server is unavailable
+- **Analogy**: Like persistently calling someone until they answer
+- **Opposite**: Soft mount (gives up after timeout)
+- **Why it matters**: Prevents data loss if network has temporary hiccups
+- **Use case**: Critical operations that must not fail
+
+---
+
+### I
+
+**Index (Search Index)**
+- **Definition**: A data structure that allows fast searching of documents
+- **Analogy**: Like a book's table of contents or index at the back
+- **Types**:
+  - **Flush Index**: Temporary index created during document processing
+  - **Ready Index**: Final, optimized index ready for searching
+- **Why it matters**: Indexes make search fast - without them, searching would be very slow
+
+**Interrupt (intr)**
+- **Definition**: A signal that can stop or cancel a running operation
+- **Analogy**: Like pressing Ctrl+C to stop a program
+- **Why it matters**: Allows stuck operations to be cancelled, preventing system hangs
+- **NFS Option**: `intr` allows NFS operations to be interrupted
+
+**I/O (Input/Output)**
+- **Definition**: Operations that read from or write to storage
+- **Types**:
+  - **Input**: Reading data (from disk to memory)
+  - **Output**: Writing data (from memory to disk)
+- **Why it matters**: NFS I/O is slower than local I/O due to network latency
+
+---
+
+### K
+
+**Kubernetes**
+- **Definition**: An open-source system for managing containerized applications
+- **Key Concepts**:
+  - **Pod**: The smallest deployable unit (like a container)
+  - **StatefulSet**: Manages stateful applications (like Vespa)
+  - **PVC (PersistentVolumeClaim)**: Request for storage
+  - **PV (PersistentVolume)**: The actual storage volume
+- **Why it matters**: Vespa runs in Kubernetes pods
+
+---
+
+### L
+
+**Latency**
+- **Definition**: The delay between sending a request and receiving a response
+- **Types**:
+  - **Network Latency**: Delay over network (NFS adds this)
+  - **Disk Latency**: Delay for disk operations
+- **Analogy**: Like the time it takes for a letter to arrive in the mail
+- **Why it matters**: High latency slows down all operations
+- **Example**: Local storage: 1ms, NFS storage: 5-10ms
+
+**Lock (File Lock)**
+- **Definition**: See "File Locking"
+
+---
+
+### M
+
+**Memory (RAM)**
+- **Definition**: Temporary storage that the CPU uses to hold data and programs while running
+- **Analogy**: Like a desk - bigger desk = can hold more files at once
+- **Units**: Measured in bytes (KB, MB, GB)
+- **Types**:
+  - **Request**: Minimum memory guaranteed
+  - **Limit**: Maximum memory allowed
+- **Why it matters**: More memory = can load more files = fewer disk reads = faster
+
+**Metadata**
+- **Definition**: Data about data (file size, permissions, creation date, etc.)
+- **Analogy**: Like a book's cover that tells you the title, author, and page count
+- **Examples**: File size, permissions, access time, modification time
+- **Why it matters**: Updating metadata requires writes, which can slow down operations
+
+**Mount**
+- **Definition**: The process of making a storage device or network share accessible to the operating system
+- **Analogy**: Like plugging in a USB drive so the computer can see it
+- **NFS Mount**: Making an NFS share accessible to a pod
+- **Mount Point**: The directory where the storage is accessible (e.g., `/opt/vespa/var`)
+
+**Mount Options**
+- **Definition**: Settings that control how a filesystem is mounted
+- **Analogy**: Like settings on a car (automatic vs manual, fuel type, etc.)
+- **Examples**: `hard`, `nfsvers=4.1`, `timeo=600`
+- **Why it matters**: Mount options determine performance and reliability
+
+---
+
+### N
+
+**Network File System (NFS)**
+- **Definition**: A protocol that allows a computer to access files over a network as if they were local
+- **Versions**:
+  - **NFSv3**: Older version (1995), stateless, less reliable locking
+  - **NFSv4.1**: Newer version (2010), stateful, better locking and performance
+- **Analogy**: Like a shared network drive that multiple computers can access
+- **Why it matters**: NFS adds network latency to all file operations
+
+**Network Protocol**
+- **Definition**: A set of rules for how data is transmitted over a network
+- **Types**:
+  - **TCP (Transmission Control Protocol)**: Reliable, connection-oriented
+  - **UDP (User Datagram Protocol)**: Fast, connectionless, can lose packets
+- **Why it matters**: TCP is more reliable for NFS, preventing data loss
+
+**noatime**
+- **Definition**: A mount option that disables updating file access times
+- **Why it matters**: Saves time by skipping unnecessary write operations
+- **Performance**: Can save 2ms per file read
+- **Related**: `nodiratime` (for directories)
+
+**nodiratime**
+- **Definition**: A mount option that disables updating directory access times
+- **Why it matters**: Saves time on directory operations
+- **Related**: `noatime` (for files)
+
+---
+
+### P
+
+**PersistentVolume (PV)**
+- **Definition**: A storage resource in Kubernetes that represents actual storage
+- **Analogy**: Like a physical hard drive that exists in the cluster
+- **Types**: Can be local storage, NFS, cloud storage, etc.
+- **Why it matters**: Defines the storage that pods can use
+
+**PersistentVolumeClaim (PVC)**
+- **Definition**: A request for storage by a pod
+- **Analogy**: Like requesting a parking space
+- **Binding**: PVC binds to a PV to provide storage to a pod
+- **Why it matters**: Pods request storage through PVCs
+
+**Pod**
+- **Definition**: The smallest deployable unit in Kubernetes (usually contains one container)
+- **Analogy**: Like a shipping container that holds an application
+- **Example**: `vespa-0` is a pod running Vespa
+- **Why it matters**: Vespa runs inside a pod
+
+**Protocol**
+- **Definition**: See "Network Protocol"
+
+---
+
+### R
+
+**Read Buffer (rsize)**
+- **Definition**: The amount of data read from NFS in a single operation
+- **Default**: Usually 8KB or 32KB
+- **Optimized**: 1MB (1048576 bytes)
+- **Why it matters**: Larger buffer = fewer network calls = faster reads
+- **Example**: 1MB file with 1MB buffer = 1 read, with 8KB buffer = 128 reads
+
+**Retrans (retrans)**
+- **Definition**: The number of times to retry a failed NFS operation
+- **Default**: Usually 3
+- **Why it matters**: Handles temporary network failures
+- **Example**: If operation fails, retry up to 3 times before giving up
+
+**Root Squash (no_root_squash)**
+- **Definition**: An NFS server setting that controls whether root user on client can access files as root
+- **no_root_squash**: Allows root access (needed for Vespa running as root)
+- **root_squash**: Maps root to a non-privileged user (more secure but can cause permission issues)
+- **Why it matters**: Vespa runs as root, so NFS must allow root access
+
+---
+
+### S
+
+**StatefulSet**
+- **Definition**: A Kubernetes resource that manages stateful applications
+- **Features**:
+  - Stable network identity (predictable hostnames)
+  - Ordered deployment and scaling
+  - Persistent storage per pod
+- **Why it matters**: Vespa needs stable identity and persistent storage
+
+**Static Provisioning**
+- **Definition**: Manually creating storage volumes before they're needed
+- **Analogy**: Like reserving parking spaces in advance
+- **Opposite**: Dynamic provisioning (automatic creation)
+- **Why it matters**: Determines where mount options are configured (PV vs StorageClass)
+
+**StorageClass**
+- **Definition**: A Kubernetes resource that defines a class of storage
+- **Purpose**: Used for dynamic provisioning to automatically create PVs
+- **Why it matters**: If using dynamic provisioning, mount options go in StorageClass
+
+---
+
+### T
+
+**TCP (Transmission Control Protocol)**
+- **Definition**: A reliable, connection-oriented network protocol
+- **Features**:
+  - Guarantees delivery (resends lost packets)
+  - Maintains order (packets arrive in order)
+  - Error checking and correction
+- **Why it matters**: More reliable than UDP for NFS operations
+- **NFS Option**: `tcp` tells NFS to use TCP instead of UDP
+
+**Timeout (timeo)**
+- **Definition**: The maximum time to wait for an operation to complete
+- **Units**: Measured in deciseconds (1/10 of a second)
+- **Example**: `timeo=600` = 60 seconds
+- **Why it matters**: Operations that take longer than timeout will fail
+- **NFS Issue**: Default timeouts may be too short for fusion operations
+
+**Temporary Directory (tmpdir)**
+- **Definition**: A directory created temporarily during an operation and deleted afterward
+- **Example**: `/opt/vespa/var/.../index.fusion.8/` is a temporary directory
+- **Why it matters**: If cleanup fails, temp directories accumulate and fill disk space
+- **Error**: "Failed to clean tmpdir" means temporary directory couldn't be deleted
+
+---
+
+### U
+
+**UDP (User Datagram Protocol)**
+- **Definition**: A fast, connectionless network protocol
+- **Features**:
+  - Fast (no connection setup)
+  - Can lose packets (not guaranteed delivery)
+  - No error checking
+- **Why it matters**: Less reliable than TCP for NFS
+- **Default**: Some NFS configurations use UDP by default
+
+**UID (User ID)**
+- **Definition**: A unique number that identifies a user in the system
+- **Examples**:
+  - UID 0 = root user
+  - UID 1000 = regular user
+- **Why it matters**: Vespa runs as UID 0 (root) or UID 1000, NFS must allow this
+
+---
+
+### V
+
+**Vector Search Engine**
+- **Definition**: A search system that uses mathematical vectors to find similar documents
+- **How it works**: Converts documents into vectors (arrays of numbers), then finds similar vectors
+- **Example**: Vespa is a vector search engine
+- **Why it matters**: Enables semantic search (finding documents by meaning, not just keywords)
+
+**Vespa**
+- **Definition**: An open-source vector search engine developed by Yahoo
+- **Features**:
+  - Fast search
+  - Real-time indexing
+  - Handles large-scale data
+- **Why it matters**: Onyx uses Vespa to store and search document embeddings
+
+---
+
+### W
+
+**Write Buffer (wsize)**
+- **Definition**: The amount of data written to NFS in a single operation
+- **Default**: Usually 8KB or 32KB
+- **Optimized**: 1MB (1048576 bytes)
+- **Why it matters**: Larger buffer = fewer network calls = faster writes
+- **Example**: 1MB file with 1MB buffer = 1 write, with 8KB buffer = 128 writes
+
+---
+
+## 📚 Additional Resources
+
+For more information on these terms:
+- **Kubernetes**: https://kubernetes.io/docs/concepts/
+- **NFS**: https://en.wikipedia.org/wiki/Network_File_System
+- **Vespa**: https://vespa.ai/
+
+---
+
 **Last Updated**: 2024  
 **Version**: 1.0  
 **Target Audience**: Junior IT Engineers
