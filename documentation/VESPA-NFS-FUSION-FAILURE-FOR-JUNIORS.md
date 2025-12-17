@@ -1127,6 +1127,364 @@ kubectl exec -it vespa-0 -n onyx-infra -- whoami
 
 ---
 
+### Problem: Works in Dev, Fails in Prod (NFS Version Mismatch)
+
+**Symptom**:
+- ✅ Vespa fusion works fine in **dev cluster**
+- ❌ Vespa fusion fails in **prod cluster**
+- Both clusters use NFS storage (different IP addresses)
+- Same code, same configuration
+
+**Root Cause**: **NFS version mismatch** between dev and prod environments
+
+**Why This Happens**:
+
+**Scenario**:
+```
+Dev Cluster:
+├── NFS Server: 10.1.1.100
+├── NFS Version: v4.1 (newer, better locking)
+└── Result: Fusion works ✅
+
+Prod Cluster:
+├── NFS Server: 10.2.2.200 (different IP - this is normal!)
+├── NFS Version: v3 (older, unreliable locking)
+└── Result: Fusion fails ❌
+```
+
+**Important**: Different IP addresses are **normal** and **not the problem**. The issue is the **NFS version**.
+
+---
+
+#### Why NFS Version Matters
+
+**NFSv3** (Older):
+- ❌ Unreliable file locking
+- ❌ Stateless (doesn't remember connections)
+- ❌ Slower performance
+- ❌ Can cause fusion failures
+
+**NFSv4.1** (Newer):
+- ✅ Reliable file locking
+- ✅ Stateful (remembers connections)
+- ✅ Better performance
+- ✅ Fusion works reliably
+
+**Example**:
+
+**Dev (NFSv4.1)**:
+```
+Vespa: "Lock file X for fusion"
+NFS Server: "Locked! I'll remember this" ✅
+    ↓ (fusion operation)
+Vespa: "Is file X still locked?"
+NFS Server: "Yes, still locked" ✅
+    ↓ (fusion completes)
+Vespa: "Unlock file X"
+NFS Server: "Unlocked!" ✅
+Result: Fusion succeeds
+```
+
+**Prod (NFSv3)**:
+```
+Vespa: "Lock file X for fusion"
+NFS Server: "Locked!" (but doesn't remember well)
+    ↓ (network hiccup)
+Vespa: "Is file X still locked?"
+NFS Server: "I don't remember..." ❌
+    ↓ (tries to delete locked file)
+Vespa: "Failed to clean tmpdir" ❌
+Result: Fusion fails
+```
+
+---
+
+#### How to Check NFS Versions
+
+**Step 1: Check Dev Cluster NFS Version**
+
+```bash
+# Connect to dev cluster
+kubectl config use-context dev-cluster  # or your dev context name
+
+# Check current mount options
+kubectl exec -it vespa-0 -n onyx-infra -- mount | grep vespa-storage
+
+# Look for "vers=" in the output
+# Example output:
+# ... type nfs4 (rw,relatime,vers=4.1,...)  ← NFSv4.1
+# OR
+# ... type nfs (rw,relatime,vers=3,...)     ← NFSv3
+```
+
+**Step 2: Check Prod Cluster NFS Version**
+
+```bash
+# Connect to prod cluster
+kubectl config use-context prod-cluster  # or your prod context name
+
+# Check current mount options
+kubectl exec -it vespa-0 -n onyx-infra -- mount | grep vespa-storage
+
+# Compare with dev version
+```
+
+**Step 3: Check PV/StorageClass Configuration**
+
+```bash
+# In dev cluster
+kubectl get pv -o yaml | grep -A 5 mountOptions
+kubectl get storageclass nfs-example -o yaml | grep -A 10 mountOptions
+
+# In prod cluster
+kubectl get pv -o yaml | grep -A 5 mountOptions
+kubectl get storageclass nfs-example -o yaml | grep -A 10 mountOptions
+```
+
+**What to Look For**:
+- Dev might have: `nfsvers=4.1` or `vers=4.1`
+- Prod might have: `nfsvers=3` or `vers=3` (or missing, defaults to v3)
+
+---
+
+#### How to Fix: Make Prod Match Dev
+
+**Option 1: Update PV Mount Options (Static Provisioning)**
+
+**File**: `onyx-k8s-infrastructure/manifests/03-vespa-pv-optimized.yaml`
+
+**Current (might be missing or v3)**:
+```yaml
+spec:
+  mountOptions:
+    - hard
+    # Missing nfsvers=4.1 or has nfsvers=3
+```
+
+**Fixed (match dev)**:
+```yaml
+spec:
+  mountOptions:
+    - hard
+    - nfsvers=4.1        # ✅ Add this to match dev
+    - timeo=600
+    - retrans=3
+    - actimeo=60
+    - noatime
+    - nodiratime
+    - rsize=1048576
+    - wsize=1048576
+    - tcp
+    - intr
+  nfs:
+    server: 10.2.2.200   # ✅ Prod NFS server IP (different from dev - this is OK!)
+    path: /exports/vespa
+```
+
+**Apply**:
+```bash
+# In prod cluster
+kubectl apply -f onyx-k8s-infrastructure/manifests/03-vespa-pv-optimized.yaml
+
+# Restart pod to apply new mount options
+kubectl delete pod vespa-0 -n onyx-infra
+```
+
+---
+
+**Option 2: Update StorageClass (Dynamic Provisioning)**
+
+**File**: `onyx-k8s-infrastructure/manifests/03-vespa-storageclass.yaml`
+
+**Current (might be missing or v3)**:
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-example
+provisioner: nfs-client
+parameters:
+  server: 10.2.2.200
+  path: /exports/vespa
+# Missing mountOptions or has nfsvers=3
+```
+
+**Fixed (match dev)**:
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-example
+provisioner: nfs-client
+parameters:
+  server: 10.2.2.200
+  path: /exports/vespa
+mountOptions:                    # ✅ Add this section
+  - hard
+  - nfsvers=4.1                  # ✅ Match dev version
+  - timeo=600
+  - retrans=3
+  - actimeo=60
+  - noatime
+  - nodiratime
+  - rsize=1048576
+  - wsize=1048576
+  - tcp
+  - intr
+```
+
+**Apply**:
+```bash
+# In prod cluster
+kubectl apply -f onyx-k8s-infrastructure/manifests/03-vespa-storageclass.yaml
+
+# Delete and recreate PVC to apply new mount options
+kubectl delete pvc vespa-storage-vespa-0 -n onyx-infra
+# StatefulSet will recreate it with new options
+```
+
+---
+
+#### Verify the Fix
+
+**Step 1: Check Mount Options Applied**
+
+```bash
+# In prod cluster
+kubectl exec -it vespa-0 -n onyx-infra -- mount | grep vespa-storage
+```
+
+**Expected Output** (should show v4.1):
+```
+... type nfs4 (rw,relatime,vers=4.1,rsize=1048576,wsize=1048576,...)
+```
+
+**If you see `vers=3`**: Mount options not applied correctly, check PV/StorageClass again.
+
+---
+
+**Step 2: Compare Dev vs Prod**
+
+```bash
+# Dev cluster
+kubectl exec -it vespa-0 -n onyx-infra -- mount | grep vespa-storage | grep -o "vers=[0-9.]*"
+# Output: vers=4.1
+
+# Prod cluster
+kubectl exec -it vespa-0 -n onyx-infra -- mount | grep vespa-storage | grep -o "vers=[0-9.]*"
+# Output: vers=4.1  ← Should match dev now!
+```
+
+**If versions match**: ✅ Fix applied successfully!
+
+---
+
+**Step 3: Monitor Fusion Operations**
+
+```bash
+# Watch prod logs
+kubectl logs -f vespa-0 -n onyx-infra | grep -i fusion
+```
+
+**Expected** (after fix):
+```
+[INFO] Fusion started for id 8
+[INFO] Fusion completed successfully
+[INFO] Cleaned up temporary directory
+```
+
+**If still failing**: Check other issues (resources, network latency, etc.)
+
+---
+
+#### Important Notes
+
+**1. Different IP Addresses Are Normal**
+- ✅ Dev NFS: `10.1.1.100` - This is fine!
+- ✅ Prod NFS: `10.2.2.200` - This is fine!
+- ❌ **The problem is NOT the IP address**
+- ✅ **The problem IS the NFS version**
+
+**2. NFS Server Version vs Client Version**
+- **Server Version**: What the NFS server supports (set by infrastructure team)
+- **Client Version**: What the pod requests (set in mount options)
+- **They must match or client must be ≤ server version**
+
+**Example**:
+```
+NFS Server supports: v3, v4.0, v4.1
+Pod requests: v4.1  ✅ Works (server supports it)
+Pod requests: v4.2  ❌ Fails (server doesn't support it)
+```
+
+**3. Check What NFS Server Supports**
+
+If you're not sure what version the NFS server supports:
+
+```bash
+# From a pod, try mounting with different versions
+kubectl run -it --rm nfs-test --image=busybox --restart=Never -- sh
+
+# Try NFSv4.1
+mount -t nfs4 -o vers=4.1 <NFS_SERVER_IP>:/exports/vespa /mnt
+# If this works: Server supports v4.1 ✅
+
+# Try NFSv3
+umount /mnt
+mount -t nfs -o vers=3 <NFS_SERVER_IP>:/exports/vespa /mnt
+# If this works: Server supports v3 ✅
+
+# Clean up
+umount /mnt
+exit
+kubectl delete pod nfs-test
+```
+
+**4. If NFS Server Doesn't Support v4.1**
+
+If the prod NFS server only supports v3, you have two options:
+
+**Option A: Ask Infrastructure Team to Upgrade**
+- Request NFS server upgrade to support v4.1
+- This is the best long-term solution
+
+**Option B: Use Optimized NFSv3 Settings**
+- Use NFSv3 but with optimized mount options
+- Still better than default, but not as good as v4.1
+
+```yaml
+mountOptions:
+  - hard
+  - nfsvers=3              # Use v3 (what server supports)
+  - timeo=600               # Increase timeout
+  - retrans=5               # More retries for v3
+  - actimeo=60
+  - noatime
+  - nodiratime
+  - rsize=1048576
+  - wsize=1048576
+  - tcp
+  - intr
+```
+
+---
+
+#### Summary: Dev vs Prod Checklist
+
+**When Dev Works but Prod Doesn't**:
+
+| Check | Dev | Prod | Action |
+|-------|-----|------|--------|
+| **NFS Version** | v4.1 ✅ | v3 ❌ | Update prod to v4.1 |
+| **Mount Options** | Optimized ✅ | Default ❌ | Copy dev options to prod |
+| **IP Address** | 10.1.1.100 | 10.2.2.200 | ✅ Different is OK! |
+| **Resources** | 2 CPU, 4Gi | 1 CPU, 2Gi | Increase prod resources |
+| **Network Latency** | Low | High? | Check network |
+
+**Most Common Issue**: NFS version mismatch (dev has v4.1, prod has v3)
+
+---
+
 ## 📊 Summary: Before vs After
 
 ### Before Fix
