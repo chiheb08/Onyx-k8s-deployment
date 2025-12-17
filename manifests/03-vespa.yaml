@@ -69,11 +69,11 @@ spec:
               mountPath: /opt/vespa/var
           resources:
             requests:
-              cpu: 1000m      # Reduced from Helm (4000m) for minimal deployment
-              memory: 2Gi     # Reduced from Helm (8Gi) for minimal deployment
+              cpu: 2000m      # Increased for NFS I/O performance
+              memory: 4Gi     # Increased for better fusion operations
             limits:
-              cpu: 4000m      # Reduced from Helm (8000m)
-              memory: 8Gi     # Reduced from Helm (32Gi)
+              cpu: 8000m      # Increased for NFS I/O performance
+              memory: 16Gi    # Increased for better fusion operations
           livenessProbe:
             httpGet:
               path: /state/v1/health

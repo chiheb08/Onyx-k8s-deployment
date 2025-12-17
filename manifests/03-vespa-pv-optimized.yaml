@@ -1,0 +1,40 @@
+# ============================================================================
+# Optimized PersistentVolume for Vespa with NFS Mount Options
+# ============================================================================
+# This PV includes optimized NFS mount options to prevent fusion failures
+# 
+# IMPORTANT: Update the NFS server IP and path before applying!
+# ============================================================================
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vespa-storage-pv
+  labels:
+    app: vespa
+    storage-type: nfs-optimized
+spec:
+  capacity:
+    storage: 30Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-example
+  # Optimized NFS mount options for Vespa fusion operations
+  mountOptions:
+    - hard                    # Retry on errors (don't fail fast)
+    - nfsvers=4.1             # Use NFSv4.1 (better locking than v3)
+    - timeo=600               # Timeout: 60 seconds (600 deciseconds)
+    - retrans=3               # Retry 3 times before giving up
+    - actimeo=60              # Attribute cache timeout: 60 seconds
+    - noatime                 # Don't update access times (reduces writes)
+    - nodiratime              # Don't update directory access times
+    - rsize=1048576           # Read buffer: 1MB (larger = fewer network calls)
+    - wsize=1048576           # Write buffer: 1MB
+    - tcp                     # Use TCP (more reliable than UDP)
+    - intr                    # Allow interrupts (for better error handling)
+  nfs:
+    # ⚠️ CHANGE THESE VALUES TO MATCH YOUR NFS SERVER
+    server: <YOUR_NFS_SERVER_IP>        # e.g., 192.168.1.100
+    path: <YOUR_NFS_EXPORT_PATH>        # e.g., /exports/vespa
+
