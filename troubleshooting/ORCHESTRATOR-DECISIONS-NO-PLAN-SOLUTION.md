@@ -142,7 +142,77 @@ except Exception as e:
 
 ### **Location 2: DEEP Research (around line 464)**
 
-Same changes applied to the DEEP research path.
+**OLD CODE:**
+```python
+try:
+    orchestrator_action = invoke_llm_json(
+        llm=graph_config.tooling.primary_llm,
+        prompt=create_question_prompt(
+            decision_system_prompt,
+            decision_prompt,
+            uploaded_image_context=uploaded_image_context,
+        ),
+        schema=OrchestratorDecisonsNoPlan,
+        timeout_override=TF_DR_TIMEOUT_LONG,
+        # max_tokens=1500,
+    )
+    next_step = orchestrator_action.next_step
+    next_tool_name = next_step.tool
+
+    query_list = [q for q in (next_step.questions or [])]
+    reasoning_result = orchestrator_action.reasoning
+
+    tool_calls_string = create_tool_call_string(next_tool_name, query_list)
+except Exception as e:
+    logger.error(f"Error in approach extraction: {e}")
+    raise e
+```
+
+**NEW CODE:**
+```python
+try:
+    orchestrator_action = invoke_llm_json(
+        llm=graph_config.tooling.primary_llm,
+        prompt=create_question_prompt(
+            decision_system_prompt,
+            decision_prompt,
+            uploaded_image_context=uploaded_image_context,
+        ),
+        schema=OrchestratorDecisonsNoPlan,
+        timeout_override=TF_DR_TIMEOUT_LONG,
+        # max_tokens=1500,
+    )
+    next_step = orchestrator_action.next_step
+    next_tool_name = next_step.tool
+
+    query_list = [q for q in (next_step.questions or [])]
+    reasoning_result = orchestrator_action.reasoning
+
+    tool_calls_string = create_tool_call_string(next_tool_name, query_list)
+except (ValueError, ValidationError) as e:
+    # Handle JSON parsing errors and validation errors gracefully
+    error_msg = str(e).lower()
+    if (
+        "empty response" in error_msg
+        or "invalid json" in error_msg
+        or "orchestratordecisonsnoplan" in error_msg
+        or "validation error" in error_msg
+    ):
+        logger.warning(
+            f"LLM returned invalid JSON for orchestrator decision, falling back to default tool. Error: {e}"
+        )
+        # Fallback to a safe default - use CLOSER tool to answer with available information
+        next_tool_name = DRPath.CLOSER.value
+        query_list = ["Answer the question with the information you have."]
+        tool_calls_string = create_tool_call_string(next_tool_name, query_list)
+        reasoning_result = "Unable to determine next step from LLM response. Proceeding with answer generation."
+    else:
+        logger.error(f"Error in approach extraction: {e}")
+        raise e
+except Exception as e:
+    logger.error(f"Error in approach extraction: {e}")
+    raise e
+```
 
 ---
 
