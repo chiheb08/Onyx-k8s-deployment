@@ -1,0 +1,77 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build-and-push-pipeline
+spec:
+  params:
+    - name: git-tag
+      description: Git tag that triggered the pipeline
+    - name: image-name
+      description: Docker image name
+    - name: image-tag
+      description: Docker image tag
+    - name: dockerhub-username
+      description: DockerHub username
+    - name: dockerhub-password
+      description: DockerHub password (secret)
+  
+  tasks:
+    # Task 1: Clone the repository
+    - name: git-clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: https://github.com/YOUR_USERNAME/tekton-tutorial.git  # ⚠️ REPLACE WITH YOUR REPO
+        - name: revision
+          value: $(params.git-tag)
+        - name: subdirectory
+          value: ""
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+    
+    # Task 2: Build Docker image
+    - name: build-image
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: $(params.dockerhub-username)/$(params.image-name):$(params.image-tag)
+        - name: DOCKERFILE
+          value: Dockerfile
+        - name: CONTEXT
+          value: $(workspaces.source.path)
+        - name: STORAGE_DRIVER
+          value: vfs
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      runAfter:
+        - git-clone
+    
+    # Task 3: Push to DockerHub
+    - name: push-image
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: $(params.dockerhub-username)/$(params.image-name):$(params.image-tag)
+        - name: DOCKERFILE
+          value: Dockerfile
+        - name: CONTEXT
+          value: $(workspaces.source.path)
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: TLSVERIFY
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      runAfter:
+        - build-image
+  
+  workspaces:
+    - name: shared-workspace
+      description: Shared workspace for all tasks
+

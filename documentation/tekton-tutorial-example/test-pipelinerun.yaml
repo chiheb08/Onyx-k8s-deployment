@@ -1,0 +1,29 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: test-build-and-push
+spec:
+  pipelineRef:
+    name: build-and-push-pipeline
+  serviceAccountName: tekton-pipeline-sa
+  params:
+    - name: git-tag
+      value: "main"  # Use main branch for testing
+    - name: image-name
+      value: "tekton-tutorial"
+    - name: image-tag
+      value: "test-manual"  # Change this to test different tags
+    - name: dockerhub-username
+      value: YOUR_DOCKERHUB_USERNAME  # ⚠️ REPLACE WITH YOUR DOCKERHUB USERNAME
+    - name: dockerhub-password
+      value: ""  # Will use secret instead
+  workspaces:
+    - name: shared-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+
