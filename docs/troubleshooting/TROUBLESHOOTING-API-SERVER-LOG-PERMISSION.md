@@ -71,16 +71,6 @@ Pick **one** of these approaches:
 
 This is the most Kubernetes-native fix.
 
-### Option B: Change permissions in your custom image
-
-If you build your own image, ensure `/var/log/onyx` is writable by the runtime user.
-The simplest (but broad) approach is:
-
-```dockerfile
-USER root
-RUN mkdir -p /var/log/onyx && chmod -R 0777 /var/log/onyx
-```
-
-> Note: If `/var/log/onyx` is a **volume mount**, Dockerfile permissions won’t matter (the mount replaces the directory). Use “Option A” in that case.
+> Note: Avoid “run as root” fixes on OpenShift. Prefer Fix 1 (stdout-only) or this volume mount approach.
 
 

@@ -125,6 +125,13 @@ spec:
             - configMapRef:
                 name: onyx-config
           env:
+            # OpenShift-friendly logging:
+            # Ensure Onyx does not try to write rotating log files under /var/log/onyx,
+            # since OpenShift pods commonly run as a random (non-root) UID.
+            - name: DANSWER_RUNNING_IN_DOCKER
+              value: "false"
+            - name: DEV_LOGGING_ENABLED
+              value: "false"
             # Database credentials from secret
             - name: POSTGRES_USER
               valueFrom:
