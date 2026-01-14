@@ -4,8 +4,9 @@
 
 1. **Inconsistent Filtering**: Some endpoints filter `DELETING` files, others don't
 2. **Project Files Endpoint**: `get_files_in_project` doesn't filter `DELETING` files
-3. **Deletion Timing**: Files marked as `DELETING` may still appear briefly
-4. **No Immediate Feedback**: User doesn't know deletion is in progress
+3. **Chat Session Project Files Endpoint**: `get_chat_session_project_files` doesn't filter `DELETING` files
+4. **Deletion Timing**: Files marked as `DELETING` may still appear briefly if any list endpoint still returns them
+5. **No Immediate Feedback**: User doesn't know deletion is in progress
 
 ---
 
@@ -58,14 +59,15 @@ def get_files_in_project(
 
 ---
 
-### Problem 2: Ensure All File List Endpoints Filter Consistently
+### Problem 2: Chat Session Project Files Endpoint Missing DELETING Filter
 
-**Check all endpoints that return user files and ensure they filter `DELETING`:**
+**File**: `onyx-repo/backend/onyx/server/features/projects/api.py`
 
-1. ✅ `get_recent_files` - Already filters DELETING ✓
-2. ❌ `get_files_in_project` - Missing DELETING filter (FIX ABOVE)
-3. ✅ `get_user_file_statuses` - Intentionally includes DELETING (for polling) ✓
-4. ✅ `get_user_file` - Filters DELETING ✓
+**Location**: `get_chat_session_project_files` (near the bottom of the file)
+
+**Why it matters**: the UI often loads project files for an active chat session; if this endpoint doesn't filter `DELETING`, a deleted file can “come back” in the project/chat file list until the background delete finishes.
+
+**Change**: add `.filter(UserFile.status != UserFileStatus.DELETING)` alongside the existing FAILED filter.
 
 ---
 
@@ -140,7 +142,7 @@ def get_files_in_project(
 
 ## 📋 Complete List of Backend Changes
 
-### Change 1: Fix Project Files Endpoint
+### Change 1: Fix Project Files Endpoint (`get_files_in_project`)
 
 **File**: `onyx-repo/backend/onyx/server/features/projects/api.py`
 **Function**: `get_files_in_project`
@@ -150,13 +152,21 @@ def get_files_in_project(
 
 ---
 
-### Change 2: Verify All Endpoints (No Code Changes Needed)
+### Change 2: Fix Chat Session Project Files Endpoint (`get_chat_session_project_files`)
 
-These endpoints are already correct:
+**File**: `onyx-repo/backend/onyx/server/features/projects/api.py`
+**Function**: `get_chat_session_project_files`
 
-1. ✅ `get_recent_files` (`users.py:981`) - Filters DELETING ✓
-2. ✅ `get_user_file` (`projects/api.py:436`) - Filters DELETING ✓
-3. ✅ `get_user_file_statuses` (`projects/api.py:462`) - Intentionally includes DELETING (for polling) ✓
+**Change**: Add `.filter(UserFile.status != UserFileStatus.DELETING)` (same as Change 1)
+
+---
+
+### Change 3: Verify Other Endpoints (Usually No Code Changes Needed)
+
+In the official `onyx-dot-app/onyx` repo, these are already filtering `DELETING`:
+
+1. ✅ `get_user_file` (in `projects/api.py`) - filters `DELETING`
+2. ✅ `get_user_file_statuses` (in `projects/api.py`) - filters `DELETING` (so it will **NOT** return deleting files)
 
 ---
 
@@ -206,14 +216,16 @@ These endpoints are already correct:
 
 ## 📝 Summary
 
-**Only 1 backend change needed**:
+**2 backend changes needed**:
 
-1. **Add DELETING filter to `get_files_in_project`** - This is the missing piece!
+1. **Add DELETING filter to `get_files_in_project`**
+2. **Add DELETING filter to `get_chat_session_project_files`**
 
-**All other endpoints are already correct.**
+**Most other endpoints are already correct in the official repo.**
 
 ---
 
 **Last Updated**: 2024  
 **Version**: 1.0
+
 
