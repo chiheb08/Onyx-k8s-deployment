@@ -195,14 +195,131 @@ This is fast because `created_year` is an `attribute`.
 
 ## How this maps to Onyx (why you care)
 
-In Onyx:
+Onyx uses Vespa like a **search index** and Postgres like the **source of truth**.
+This section explains (at a technical level) what actually happens in Onyx when data is ingested and queried.
 
-- Postgres stores truth (e.g. `user_file`, `chat_message`, etc.)
-- Vespa stores the **search index**
+### 1) What Onyx ingests (“documents”)
 
-So:
-- if a “row” is deleted in Postgres, you also need to remove the corresponding “document(s)” from Vespa
-- otherwise search results can still show stale content
+Onyx converts many sources into a common internal model:
+
+- A **`Document`** with:
+  - `id`
+  - `sections` (text or images)
+  - `semantic_identifier` (what users see in the UI)
+  - metadata (owners, tags, access control, etc.)
+
+This is the object you see throughout the backend (`backend/onyx/connectors/models.py` in the official repo).
+
+Where these documents come from:
+
+- **Connectors** (Google Drive, Confluence, Slack, etc.) emit batches of `Document`s.
+- **Ingestion API** can also accept “documents” directly (same model, `from_ingestion_api` flag).
+- **User uploads** (files uploaded via UI) are treated as documents too:
+  - for user files, Onyx uses the `user_file.id` as the document ID during indexing so the file can later be updated/deleted consistently.
+
+### 2) Onyx ingestion/indexing pipeline (the “ETL” into Vespa)
+
+Think of this as: **take raw docs → prepare → chunk → embed → write to Vespa**.
+
+In the official repo, the core flow is implemented in `backend/onyx/indexing/indexing_pipeline.py`:
+
+- **Prepare / DB upsert (Postgres first)**
+  - Onyx upserts document metadata into Postgres (so Postgres stays the system of record).
+  - This includes tags/metadata needed for UI and permission logic.
+- **Filter**
+  - Skip empty or extremely large documents to avoid indexing useless data or OOM crashes.
+- **Chunk**
+  - Split documents into chunks (because search + LLM context works on chunks, not whole files).
+- **Embed**
+  - Create vectors for each chunk using the active embedding model.
+- **Write to “document index”**
+  - Onyx writes the chunks to the configured index backend.
+  - In most deployments this is **Vespa**.
+
+Under the hood, the “write to Vespa” step calls a helper which tries a big batch first, and if it fails, retries document-by-document to isolate failures:
+
+- `backend/onyx/indexing/vector_db_insertion.py` (`write_chunks_to_vector_db_with_backoff`)
+
+### 3) How Onyx chooses the Vespa schema (“which table am I writing to?”)
+
+Onyx stores the active index configuration in Postgres in `search_settings`.
+
+Key field:
+
+- `search_settings.index_name`
+
+That `index_name` is passed into the Vespa client as the Vespa **schema/document type name**.
+
+In the official repo:
+
+- `backend/onyx/document_index/factory.py` chooses the index implementation:
+  - typically `VespaIndex(index_name=search_settings.index_name, ...)`
+  - it can also support a **secondary index** during model migrations / switchover
+
+### 4) How Onyx queries Vespa (keyword + vector “hybrid search”)
+
+At query time, Onyx usually does **hybrid retrieval**:
+
+1) Compute a **query embedding** (vector) for the user’s query text.
+2) Combine:
+   - keyword matching (text index)
+   - vector similarity (embedding search)
+   - filters (source type, document sets, user file IDs, etc.)
+3) Ask Vespa for top chunks, ranked.
+
+In the official repo:
+
+- `backend/onyx/context/search/retrieval/search_runner.py` calls `document_index.hybrid_retrieval(...)`
+- The Vespa implementation is in `backend/onyx/document_index/vespa/index.py` (`VespaIndex.hybrid_retrieval`)
+
+What’s happening conceptually:
+
+- **Filters** are first built from the request (examples: source types, document sets, user file IDs, ACL, tenant).
+- Onyx then issues a Vespa query that includes:
+  - text query parsing via `userInput(@query)` (safe parsing of user text)
+  - a grammar configuration like `weakAnd` (a Vespa setting that impacts matching behavior)
+  - a ranking profile (example: `admin_search`) to control scoring
+
+You can see this style clearly in `VespaIndex.admin_retrieval` where YQL is built from a base select + filter clauses + `userInput(@query)`.
+
+Important concept:
+
+- **`hybrid_alpha`** controls the balance:
+  - closer to 0 → mostly keyword
+  - closer to 1 → mostly semantic/vector
+
+### 4.1) Why Onyx does “two-step retrieval” (IDs first, then chunk fetch)
+
+A common performance pattern in Onyx is:
+
+1) **Retrieve top matching chunk IDs** (fast ranked retrieval)
+2) **Fetch full chunk payloads by ID** (id-based retrieval)
+
+This is visible in `search_runner.py`:
+
+- it collects document IDs from search results
+- then calls `document_index.id_based_retrieval(...)` to pull chunk content for those IDs
+
+This keeps the initial ranking query cheaper and makes the “fetch content” step more controlled.
+
+### 4.2) Multi-tenancy (why tenant_id shows up in queries)
+
+If Onyx is running in multi-tenant mode, Vespa documents include a `tenant_id` field.
+Onyx then filters queries to only return documents from the active tenant.
+
+You’ll see tenant usage in Vespa code paths (e.g., queries selecting IDs where `tenant_id contains "<tenant>"`).
+
+### 5) Why deletion inconsistencies happen (Postgres vs Vespa)
+
+Because Postgres is the truth, and Vespa is a search index:
+
+- If a file/document is “deleted” in Postgres, but its chunks are still in Vespa, search can still return them.
+- If the backend marks a record as “DELETING” (soft state) but some list endpoints don’t filter it, the UI can show it again briefly.
+
+That’s why Onyx typically does deletion in two phases:
+
+1) Mark “deleting” in Postgres (so UI can hide it immediately)
+2) Asynchronously delete the document/chunks from Vespa, then remove the Postgres row
 
 ---
 
