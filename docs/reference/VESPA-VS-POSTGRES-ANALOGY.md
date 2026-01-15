@@ -89,6 +89,45 @@ find /opt/vespa -type f -name "*.sd" 2>/dev/null
 
 Each `something.sd` is a Vespa schema (roughly a “table”).
 
+#### Why you see multiple `.sd` paths for the same schema (explaining your output)
+
+When you run `find ... "*.sd"` you’ll often see the **same schema name** appear in multiple places. That’s normal.
+Here’s what those paths usually mean:
+
+- **`.../config_server/serverdb/tenants/default/sessions/7/schemas/<name>.sd`**
+  - **config_server**: the Vespa component storing the deployed application config.
+  - **tenants/default**: “default tenant” (common in self-hosted deployments).
+  - **sessions/7**: each deploy creates a new numbered “session”.
+    - Think of this like “deployment revision #7”.
+  - **schemas/<name>.sd**: the raw schema file for that deployment session.
+
+- **`.../sessions/7/.preprocessed/schemas/<name>.sd`**
+  - Vespa preprocesses the application package (expands templates, validates config).
+  - This is the processed version of the same schema for that session.
+
+- **`.../filedistribution/<hash>/7/schemas/<name>.sd`**
+  - Vespa distributes the deployed package to nodes.
+  - The long `<hash>` is an internal identifier.
+  - The important part is still **session 7** and the schema file name.
+
+So: **multiple files ≠ multiple “tables”**. It’s usually the same “table definition” stored in different places.
+
+#### Show only unique schema names (more readable)
+
+```bash
+find /opt/vespa -type f -name "*.sd" 2>/dev/null -exec basename {} .sd \; | sort -u
+```
+
+#### Open a schema file to see fields (“columns”)
+
+Pick one of the returned paths (for example the `config_server/.../schemas/...sd` one) and print it:
+
+```bash
+sed -n '1,200p' /opt/vespa/var/db/vespa/config_server/serverdb/tenants/default/sessions/<N>/schemas/<SCHEMA>.sd
+```
+
+That file is where you’ll see the **field list**, which is the Vespa equivalent of “table columns”.
+
 ### Option B: infer schema names from YQL output
 
 Query “any schema” and return `documentid`:
