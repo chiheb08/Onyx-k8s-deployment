@@ -304,6 +304,58 @@ Optional (depends on your debugging goals):
 
 ---
 
+## Vespa “database/tables” equivalent (schemas + document types)
+
+Vespa does **not** have “databases and tables” like Postgres.
+The closest equivalents are:
+
+- **Application**: what’s deployed to Vespa (your whole search app)
+- **Schema / document type**: the “collection” you query in YQL (`select ... from <schema> where ...`)
+- **Fields**: the “columns” defined in the schema
+
+### What is the “currently used database” in Vespa for Onyx?
+
+For Onyx, the “current database/table name” you should use in Vespa is the **schema name** stored in Postgres:
+
+- `search_settings.index_name`
+
+So, the “current” schema is whichever `index_name` is active/current in `search_settings`.
+
+### How to list the available schemas (“tables”) from inside the Vespa pod
+
+#### Option 1 (recommended): inspect the deployed schema files (`*.sd`)
+
+Inside the Vespa pod:
+
+```bash
+# List schema definition files (one .sd file per schema/document type)
+find /opt/vespa -type f -name "*.sd" 2>/dev/null | head -200
+```
+
+To print just schema names:
+
+```bash
+find /opt/vespa -type f -name "*.sd" 2>/dev/null -exec basename {} .sd \; | sort -u
+```
+
+#### Option 2: infer schema(s) by querying
+
+If you already have `INDEX_NAME`, the fact that this query works confirms the schema exists:
+
+```bash
+vespa query "yql=select documentid from ${INDEX_NAME} where true;" "hits=1"
+```
+
+#### Option 3: “visit” live documents (can be heavy)
+
+This inspects live docs and can be expensive on large datasets—use sparingly:
+
+```bash
+vespa visit --selection "true" --field-set=[all] --wanted-document-count 1
+```
+
+---
+
 ## Where inconsistencies typically come from (and what to improve)
 
 ### 1) “File reappears right after delete”
