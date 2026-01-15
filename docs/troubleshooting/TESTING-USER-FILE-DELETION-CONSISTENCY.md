@@ -9,6 +9,86 @@ It also explains the backend logic so you know where inconsistencies come from a
 
 ---
 
+## First: how to access Postgres + Vespa pods (copy/paste)
+
+Set your namespace once:
+
+```bash
+export NAMESPACE="<NAMESPACE>"
+```
+
+### Postgres: exec + psql
+
+```bash
+oc get pods -n "$NAMESPACE" | grep -i postgres
+oc exec -n "$NAMESPACE" -it <POSTGRES_POD> -- bash
+```
+
+Inside the pod:
+
+```bash
+psql -U postgres
+```
+
+If `bash` isn’t present, use `sh`:
+
+```bash
+oc exec -n "$NAMESPACE" -it <POSTGRES_POD> -- sh
+```
+
+### Vespa: exec + curl
+
+```bash
+oc get pods -n "$NAMESPACE" | grep -i vespa
+oc exec -n "$NAMESPACE" -it <VESPA_POD> -- bash
+```
+
+Inside the Vespa pod, you can query the local HTTP API (common):
+
+```bash
+curl -s http://localhost:8080/state/v1/health | head
+```
+
+---
+
+## Make Postgres output readable (psql “wide table” fix)
+
+When `SELECT *` prints a huge wrapped table, use these psql settings:
+
+### Option 1 (best): Expanded view
+
+```sql
+\x on
+```
+
+Now each row prints vertically (easy to read for `user_file`). Toggle back:
+
+```sql
+\x off
+```
+
+### Option 2: Pager with no line-wrapping
+
+```sql
+\pset pager on
+\setenv PAGER 'less -S'
+```
+
+`less -S` disables line wrapping so you can scroll horizontally.
+
+### Best practice: select only the columns you need
+
+Instead of `SELECT *`, use:
+
+```sql
+SELECT id, name, status, chunk_count, created_at
+FROM user_file
+ORDER BY created_at DESC
+LIMIT 10;
+```
+
+---
+
 ## Quick mental model (how deletion works)
 
 In the official Onyx backend (`onyx-dot-app/onyx`):
