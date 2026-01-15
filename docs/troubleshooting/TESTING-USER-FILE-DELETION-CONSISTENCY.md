@@ -262,22 +262,22 @@ oc get pods -n <NAMESPACE> | grep -i vespa
 oc exec -n <NAMESPACE> -it <VESPA_POD> -- bash
 ```
 
-Now query the Vespa document API from inside the pod:
+Now query Vespa using **YQL** (Vespa Query Language) from inside the pod:
 
 ```bash
 INDEX_NAME="danswer_chunk"           # replace with your DB value
 USER_FILE_ID="<USER_FILE_ID>"        # replace with your UUID
 
-curl -sG "http://localhost:8080/document/v1/default/${INDEX_NAME}/docid" \
-  --data-urlencode "selection=${INDEX_NAME}.document_id=='${USER_FILE_ID}'" \
-  --data-urlencode "wantedDocumentCount=5" \
+curl -sG "http://localhost:8080/search/" \
+  --data-urlencode "yql=select documentid,document_id,chunk_id from ${INDEX_NAME} where document_id = \"${USER_FILE_ID}\";" \
+  --data-urlencode "hits=5" \
   | head -200
 ```
 
 Expected:
 
-- Before deletion finishes: you may see documents under `"documents": [...]`
-- After deletion finishes: `"documents"` should be empty (or the call returns no matches)
+- Before deletion finishes: you may see results under `"root" -> "children"`
+- After deletion finishes: `"root" -> "children"` should be empty (0 hits)
 
 ---
 
@@ -338,9 +338,9 @@ WHERE id = '<USER_FILE_ID>';
 ### Vespa: check whether any chunks remain
 
 ```bash
-curl -sG "http://localhost:8080/document/v1/default/${INDEX_NAME}/docid" \
-  --data-urlencode "selection=${INDEX_NAME}.document_id=='${USER_FILE_ID}'" \
-  --data-urlencode "wantedDocumentCount=5"
+curl -sG "http://localhost:8080/search/" \
+  --data-urlencode "yql=select documentid,document_id,chunk_id from ${INDEX_NAME} where document_id = \"${USER_FILE_ID}\";" \
+  --data-urlencode "hits=5"
 ```
 
 
