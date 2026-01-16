@@ -43,11 +43,56 @@ Most common cause in production:
 
 In the **Postgres pod** (you can use the OpenShift UI “Terminal” tab):
 
+> Important: `psql -U postgres` connects you as the `postgres` user, but it does **not**
+> guarantee you are connected to the **same database** Onyx uses. You must confirm the DB name.
+
 ```sql
 \d search_settings
 ```
 
 If you do **not** see `background_reindex_enabled`, you must apply migrations.
+
+---
+
+## Step 1.1 — Make sure you’re checking the *correct* Postgres database
+
+### How to see “which database am I connected to?” in `psql`
+
+Inside `psql`:
+
+```sql
+SELECT current_database(), current_schema();
+SHOW search_path;
+```
+
+You can also run:
+
+```sql
+\conninfo
+```
+
+### How to know which database Onyx uses (without `oc`)
+
+In the **api-server pod** terminal, print the Postgres env vars:
+
+```bash
+echo "HOST=$POSTGRES_HOST PORT=$POSTGRES_PORT DB=$POSTGRES_DB USER=$POSTGRES_USER"
+```
+
+Then, in the **Postgres pod**, connect to the same DB:
+
+```bash
+psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
+
+If you don’t have those env vars inside the Postgres pod, just type them manually based on the api-server output:
+
+```bash
+psql -U <POSTGRES_USER> -d <POSTGRES_DB>
+```
+
+> If you connect without `-d`, `psql` often defaults to a DB named the same as the user (e.g. `postgres`),
+> which is commonly **not** the application DB.
 
 ---
 
@@ -94,6 +139,21 @@ If Onyx uses Alembic normally, you can also check:
 ```sql
 SELECT * FROM alembic_version;
 ```
+
+### If migrations “succeeded” but you still don’t see the column
+
+This usually means you ran Alembic against a **different DB/schema** than the one you’re inspecting.
+Use this query to search for the column across *all* schemas:
+
+```sql
+SELECT table_schema, table_name, column_name
+FROM information_schema.columns
+WHERE table_name = 'search_settings'
+  AND column_name = 'background_reindex_enabled';
+```
+
+- If it returns a row: run `\d <schema>.search_settings` for that schema.
+- If it returns 0 rows: Alembic didn’t apply this migration to the DB it connected to.
 
 ---
 
