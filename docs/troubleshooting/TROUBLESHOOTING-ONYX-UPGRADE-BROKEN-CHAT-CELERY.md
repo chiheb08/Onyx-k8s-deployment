@@ -161,6 +161,16 @@ WHERE table_name = 'search_settings'
 
 This is not a DB problem. It’s a **code consistency** problem.
 
+### 4.0 Quick check: confirm the container’s code paths are consistent (helps detect “partial overlay” images)
+
+Inside the **api-server pod**, run:
+
+```bash
+python -c 'import onyx; import inspect, onyx.db.search_settings as s; print("onyx package:", onyx.__file__); print("search_settings:", s.__file__)'
+```
+
+If these paths look unexpected (e.g., a mix of multiple roots or a custom overlay directory), your image likely contains a **partial file copy** and is not a clean, single-version build.
+
 ### 4.1 Check whether the enum exists in *this* running container
 
 Inside the **api-server pod**:
