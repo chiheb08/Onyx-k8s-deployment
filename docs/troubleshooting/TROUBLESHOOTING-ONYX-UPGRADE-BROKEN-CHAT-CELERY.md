@@ -4,6 +4,7 @@ This guide targets the exact failure pattern you showed:
 
 - `psycopg2.errors.UndefinedColumn: column search_settings.background_reindex_enabled does not exist`
 - `AttributeError: TOOL_CALL_RESPONSE`
+- `ImportError: cannot import name 'InformationContentClassificationModel' from onyx.natural_language_processing.search_nlp_models`
 
 These almost always mean you have an **upgrade mismatch**:
 
@@ -36,6 +37,21 @@ This points to **inconsistent code** in the running container:
 Most common cause in production:
 - building a custom image that “copies a few files” onto another image (partial overlay)
 - or running different image tags across api / celery pods
+
+### Error C: `ImportError: cannot import name 'InformationContentClassificationModel' ...`
+
+This is also a **code mismatch inside the container**:
+
+- `celery` imports a task module (e.g. `onyx/background/celery/tasks/user_file_processing/tasks.py`)
+- that task imports a symbol from `onyx/natural_language_processing/search_nlp_models.py`
+- but the symbol is missing in the version of `search_nlp_models.py` that’s actually inside the container
+
+This typically happens when:
+
+- you deployed celery workers with a different image tag than api-server, **or**
+- your custom image is a “partial overlay” (some files from a newer release, other files from an older release)
+
+It is **not** fixed by restarting Postgres.
 
 ---
 
@@ -170,6 +186,16 @@ python -c 'import onyx; import inspect, onyx.db.search_settings as s; print("ony
 ```
 
 If these paths look unexpected (e.g., a mix of multiple roots or a custom overlay directory), your image likely contains a **partial file copy** and is not a clean, single-version build.
+
+### 4.0b Quick check for the ImportError case (confirm which file is being imported)
+
+Inside the **failing celery worker pod** (e.g. `celery-worker-user-file-processing`), run:
+
+```bash
+python -c 'import onyx.natural_language_processing.search_nlp_models as m; print(m.__file__); print(sorted([x for x in dir(m) if "Classification" in x]))'
+```
+
+If the expected class name is missing, the only safe fix is to deploy a **single consistent Onyx backend image** across api-server + celery-beat + all celery workers.
 
 ### 4.1 Check whether the enum exists in *this* running container
 
