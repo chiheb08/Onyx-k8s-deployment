@@ -55,6 +55,14 @@ spec:
                 configMapKeyRef:
                   name: onyx-config
                   key: INTERNAL_URL
+            # Next.js / Node logging
+            # Next.js doesn't use the backend LOG_LEVEL. To get verbose logs, enable Node-style debug logs.
+            # You can narrow this later (e.g. "next:server*,next:router*") if it's too noisy.
+            - name: DEBUG
+              value: "next:*"
+            # Optional: reduce noise / disable Next telemetry
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
           resources:
             requests:
               cpu: 200m
