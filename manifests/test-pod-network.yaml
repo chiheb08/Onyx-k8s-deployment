@@ -1,0 +1,35 @@
+# ============================================================================
+# Network Test Pod – no Vault, no env vars
+# ============================================================================
+# Plain debug pod with networking tools. No ConfigMap, no secrets, no Vault.
+# You provide endpoints and credentials from the terminal when testing.
+#
+# Tools: curl, wget, dig, nslookup, nc, ping, traceroute, aws-cli, psql,
+#        redis-cli, jq, python3
+#
+# Usage:
+#   kubectl apply -f test-pod-network.yaml -n <namespace>
+#   kubectl exec -it network-test-pod -n <namespace> -- bash
+# ============================================================================
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: network-test-pod
+  labels:
+    app: network-test-pod
+    purpose: connectivity-testing
+spec:
+  restartPolicy: Never
+  containers:
+    - name: network-test-pod
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi

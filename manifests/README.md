@@ -47,6 +47,7 @@ All Kubernetes/OpenShift YAML deployment files for Onyx.
 | File | Component | Description |
 |------|-----------|-------------|
 | `test-pod.yaml` | Test Pod | S3 connectivity testing; credentials from Vault (Agent Injector) |
+| `test-pod-network.yaml` | Network Test Pod | No Vault, no env vars; run connectivity tests and credentials from the terminal |
 | `TEST-POD-README.md` | Test Pod Guide | Vault config and S3 test commands |
 
 ### Gateway (Deploy Last)
