@@ -1,0 +1,82 @@
+# ============================================================================
+# Test Pod for Onyx Connectivity and Troubleshooting
+# ============================================================================
+# All-in-one debug pod with tools for testing:
+# - S3/MinIO: aws-cli
+# - PostgreSQL: psql
+# - Redis: redis-cli
+# - HTTP: curl, wget
+# - DNS: dig, nslookup
+# - Network: ping, traceroute, netcat, tcpdump
+# - Utils: jq, python3
+#
+# Image: nicolaka/netshoot (network troubleshooting toolkit)
+# Usage: kubectl apply -f test-pod.yaml -n <namespace>
+#        kubectl exec -it test-pod -n <namespace> -- bash
+# ============================================================================
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  labels:
+    app: test-pod
+    purpose: troubleshooting
+spec:
+  # RestartPolicy: Never keeps pod around for debugging (doesn't respawn on exit)
+  restartPolicy: Never
+  containers:
+    - name: test-pod
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      envFrom:
+        - configMapRef:
+            name: onyx-config
+      env:
+        # Optional: inject secrets for full connectivity testing
+        # Uncomment and ensure secrets exist in your namespace
+        # - name: POSTGRES_USER
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: postgresql-secret
+        #       key: POSTGRES_USER
+        # - name: POSTGRES_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: postgresql-secret
+        #       key: POSTGRES_PASSWORD
+        # - name: REDIS_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: redis-secret
+        #       key: REDIS_PASSWORD
+        # - name: S3_AWS_ACCESS_KEY_ID
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: s3-secret  # create if needed
+        #       key: S3_AWS_ACCESS_KEY_ID
+        # - name: S3_AWS_SECRET_ACCESS_KEY
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: s3-secret
+        #       key: S3_AWS_SECRET_ACCESS_KEY
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: POSTGRES_PASSWORD
+              optional: true
+        - name: REDISCLI_AUTH
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: REDIS_PASSWORD
+              optional: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi

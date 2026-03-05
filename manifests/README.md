@@ -42,6 +42,13 @@ All Kubernetes/OpenShift YAML deployment files for Onyx.
 | `14-celery-worker-docfetching.yaml` | Docfetching Worker | docfetching | Fetch documents from connectors |
 | `15-celery-worker-docprocessing.yaml` | Docprocessing Worker | docprocessing | **Process & embed documents (CRITICAL!)** |
 
+### Troubleshooting
+
+| File | Component | Description |
+|------|-----------|-------------|
+| `test-pod.yaml` | Test Pod | Debug pod with curl, aws-cli, psql, redis-cli, dig, jq, etc. |
+| `TEST-POD-README.md` | Test Pod Guide | Commands for connectivity testing from inside the pod |
+
 ### Gateway (Deploy Last)
 
 | File | Component | Port | Description |
