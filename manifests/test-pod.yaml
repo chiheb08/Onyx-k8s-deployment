@@ -1,18 +1,11 @@
 # ============================================================================
-# Test Pod for Onyx Connectivity and Troubleshooting
+# Test Pod for S3 Connectivity Testing
 # ============================================================================
-# All-in-one debug pod with tools for testing:
-# - S3/MinIO: aws-cli
-# - PostgreSQL: psql
-# - Redis: redis-cli
-# - HTTP: curl, wget
-# - DNS: dig, nslookup
-# - Network: ping, traceroute, netcat, tcpdump
-# - Utils: jq, python3
+# S3-focused debug pod. S3 config from ConfigMap, credentials from Vault.
+# Tools: aws-cli, curl, dig, jq, nc
 #
-# Image: nicolaka/netshoot (network troubleshooting toolkit)
-# Usage: kubectl apply -f test-pod.yaml -n <namespace>
-#        kubectl exec -it test-pod -n <namespace> -- bash
+# REQUIRED: Configure Vault annotations (path, role) for S3 credentials.
+# S3 config (endpoint, bucket) can come from onyx-config or a custom ConfigMap.
 # ============================================================================
 
 apiVersion: v1
@@ -21,57 +14,65 @@ metadata:
   name: test-pod
   labels:
     app: test-pod
-    purpose: troubleshooting
+    purpose: s3-troubleshooting
+  annotations:
+    # -------------------------------------------------------------------------
+    # Vault Agent Injector - S3 credentials from Vault (not K8s Secret)
+    # Replace role and path with your Vault setup. Path must match in both
+    # agent-inject-secret-s3 and the template's "with secret" below.
+    # Vault keys: S3_AWS_ACCESS_KEY_ID/S3_AWS_SECRET_ACCESS_KEY or access_key_id/secret_access_key
+    # -------------------------------------------------------------------------
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "onyx"                              # <-- Your Vault K8s auth role
+    vault.hashicorp.com/agent-inject-secret-s3: "secret/data/onyx/s3"  # <-- Your Vault path (KV v2)
+    vault.hashicorp.com/agent-inject-template-s3: |
+      {{- with secret "secret/data/onyx/s3" -}}
+      export S3_AWS_ACCESS_KEY_ID="{{ .Data.data.S3_AWS_ACCESS_KEY_ID | default .Data.data.access_key_id }}"
+      export S3_AWS_SECRET_ACCESS_KEY="{{ .Data.data.S3_AWS_SECRET_ACCESS_KEY | default .Data.data.secret_access_key }}"
+      {{- end -}}
 spec:
-  # RestartPolicy: Never keeps pod around for debugging (doesn't respawn on exit)
   restartPolicy: Never
   containers:
     - name: test-pod
       image: nicolaka/netshoot:latest
       imagePullPolicy: IfNotPresent
-      command: ["sleep", "infinity"]
-      envFrom:
-        - configMapRef:
-            name: onyx-config
+      command:
+        - /bin/bash
+        - -c
+        - |
+          [ -f /vault/secrets/s3 ] && source /vault/secrets/s3
+          exec sleep infinity
       env:
-        # Optional: inject secrets for full connectivity testing
-        # Uncomment and ensure secrets exist in your namespace
-        # - name: POSTGRES_USER
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: postgresql-secret
-        #       key: POSTGRES_USER
-        # - name: POSTGRES_PASSWORD
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: postgresql-secret
-        #       key: POSTGRES_PASSWORD
-        # - name: REDIS_PASSWORD
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: redis-secret
-        #       key: REDIS_PASSWORD
-        # - name: S3_AWS_ACCESS_KEY_ID
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: s3-secret  # create if needed
-        #       key: S3_AWS_ACCESS_KEY_ID
-        # - name: S3_AWS_SECRET_ACCESS_KEY
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: s3-secret
-        #       key: S3_AWS_SECRET_ACCESS_KEY
-        - name: PGPASSWORD
+        # S3 configuration (from ConfigMap - add these to onyx-config or create s3-config)
+        - name: S3_ENDPOINT_URL
           valueFrom:
-            secretKeyRef:
-              name: postgresql-secret
-              key: POSTGRES_PASSWORD
+            configMapKeyRef:
+              name: onyx-config
+              key: S3_ENDPOINT_URL
               optional: true
-        - name: REDISCLI_AUTH
+        - name: S3_FILE_STORE_BUCKET_NAME
           valueFrom:
-            secretKeyRef:
-              name: redis-secret
-              key: REDIS_PASSWORD
+            configMapKeyRef:
+              name: onyx-config
+              key: S3_FILE_STORE_BUCKET_NAME
+              optional: true
+        - name: AWS_REGION_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: onyx-config
+              key: AWS_REGION_NAME
+              optional: true
+        - name: S3_ADDRESSING_STYLE
+          valueFrom:
+            configMapKeyRef:
+              name: onyx-config
+              key: S3_ADDRESSING_STYLE
+              optional: true
+        - name: S3_VERIFY_SSL
+          valueFrom:
+            configMapKeyRef:
+              name: onyx-config
+              key: S3_VERIFY_SSL
               optional: true
       resources:
         requests:
