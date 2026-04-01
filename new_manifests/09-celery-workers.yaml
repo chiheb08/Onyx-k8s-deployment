@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-primary
+  namespace: onyx-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-primary
+  template:
+    metadata:
+      labels:
+        app: celery-worker-primary
+    spec:
+      containers:
+        - name: celery-worker-primary
+          image: onyxdotapp/onyx-backend:v3.1.1
+          command: ["celery", "-A", "onyx.background.celery.versioned_apps.primary", "worker", "--loglevel=INFO", "--hostname=primary@%n", "-Q", "celery,periodic_tasks"]
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_PASSWORD
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+            - name: S3_AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-s3-secret
+                  key: S3_AWS_ACCESS_KEY_ID
+            - name: S3_AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-s3-secret
+                  key: S3_AWS_SECRET_ACCESS_KEY
+          resources:
+            requests:
+              cpu: 1
+              memory: 2Gi
+            limits:
+              cpu: 3
+              memory: 6Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-docprocessing
+  namespace: onyx-infra
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: celery-worker-docprocessing
+  template:
+    metadata:
+      labels:
+        app: celery-worker-docprocessing
+    spec:
+      containers:
+        - name: celery-worker-docprocessing
+          image: onyxdotapp/onyx-backend:v3.1.1
+          command: ["celery", "-A", "onyx.background.celery.versioned_apps.docprocessing", "worker", "--loglevel=INFO", "--hostname=docprocessing@%n", "-Q", "docprocessing"]
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_PASSWORD
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+            - name: S3_AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-s3-secret
+                  key: S3_AWS_ACCESS_KEY_ID
+            - name: S3_AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-s3-secret
+                  key: S3_AWS_SECRET_ACCESS_KEY
+          resources:
+            requests:
+              cpu: 1
+              memory: 2Gi
+            limits:
+              cpu: 4
+              memory: 8Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: onyx-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-beat
+  template:
+    metadata:
+      labels:
+        app: celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: onyxdotapp/onyx-backend:v3.1.1
+          command: ["celery", "-A", "onyx.background.celery.versioned_apps.beat", "beat", "--loglevel=INFO"]
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: POSTGRES_PASSWORD
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+          resources:
+            requests:
+              cpu: 300m
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 2Gi
