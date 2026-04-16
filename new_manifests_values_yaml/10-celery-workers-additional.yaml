@@ -1,0 +1,148 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-docfetching
+  namespace: onyx-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-docfetching
+  template:
+    metadata:
+      labels:
+        app: celery-worker-docfetching
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-docfetching
+          image: onyxdotapp/onyx-backend:v3.1.1
+          command: ["celery","-A","onyx.background.celery.versioned_apps.docfetching","worker","--pool=threads","--concurrency=2","--prefetch-multiplier=1","--loglevel=INFO","--hostname=docfetching@%n","-Q","connector_doc_fetching"]
+          envFrom: [{configMapRef: {name: env-configmap}}]
+          env:
+            - {name: POSTGRES_USER, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: username}}}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: password}}}
+            - {name: REDIS_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-redis, key: redis_password}}}
+          resources:
+            requests: {cpu: "500m", memory: "2Gi"}
+            limits: {cpu: "1000m", memory: "16Gi"}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-light
+  namespace: onyx-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-light
+  template:
+    metadata:
+      labels:
+        app: celery-worker-light
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-light
+          image: onyxdotapp/onyx-backend:v3.1.1
+          command: ["celery","-A","onyx.background.celery.versioned_apps.light","worker","--loglevel=INFO","--hostname=light@%n","-Q","vespa_metadata_sync,connector_deletion,doc_permissions_upsert,checkpoint_cleanup,index_attempt_cleanup,opensearch_migration"]
+          envFrom: [{configMapRef: {name: env-configmap}}]
+          env:
+            - {name: POSTGRES_USER, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: username}}}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: password}}}
+            - {name: REDIS_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-redis, key: redis_password}}}
+          resources:
+            requests: {cpu: "250m", memory: "512Mi"}
+            limits: {cpu: "2000m", memory: "4Gi"}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-heavy
+  namespace: onyx-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-heavy
+  template:
+    metadata:
+      labels:
+        app: celery-worker-heavy
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-heavy
+          image: onyxdotapp/onyx-backend:v3.1.1
+          command: ["celery","-A","onyx.background.celery.versioned_apps.heavy","worker","--loglevel=INFO","--hostname=heavy@%n","-Q","connector_pruning,connector_doc_permissions_sync,connector_external_group_sync,csv_generation,sandbox"]
+          envFrom: [{configMapRef: {name: env-configmap}}]
+          env:
+            - {name: POSTGRES_USER, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: username}}}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: password}}}
+            - {name: REDIS_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-redis, key: redis_password}}}
+          resources:
+            requests: {cpu: "500m", memory: "512Mi"}
+            limits: {cpu: "1000m", memory: "2Gi"}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-monitoring
+  namespace: onyx-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-monitoring
+  template:
+    metadata:
+      labels:
+        app: celery-worker-monitoring
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-monitoring
+          image: onyxdotapp/onyx-backend:v3.1.1
+          command: ["celery","-A","onyx.background.celery.versioned_apps.monitoring","worker","--loglevel=INFO","--hostname=monitoring@%n","-Q","monitoring"]
+          envFrom: [{configMapRef: {name: env-configmap}}]
+          env:
+            - {name: POSTGRES_USER, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: username}}}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: password}}}
+            - {name: REDIS_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-redis, key: redis_password}}}
+          ports:
+            - {name: metrics, containerPort: 9096}
+          resources:
+            requests: {cpu: "500m", memory: "512Mi"}
+            limits: {cpu: "1000m", memory: "4Gi"}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-user-file-processing
+  namespace: onyx-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker-user-file-processing
+  template:
+    metadata:
+      labels:
+        app: celery-worker-user-file-processing
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-user-file-processing
+          image: onyxdotapp/onyx-backend:v3.1.1
+          command: ["celery","-A","onyx.background.celery.versioned_apps.user_file_processing","worker","--loglevel=INFO","--hostname=user-file-processing@%n","-Q","user_file_processing,user_file_project_sync,user_file_delete"]
+          envFrom: [{configMapRef: {name: env-configmap}}]
+          env:
+            - {name: POSTGRES_USER, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: username}}}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: password}}}
+            - {name: REDIS_PASSWORD, valueFrom: {secretKeyRef: {name: onyx-redis, key: redis_password}}}
+            - {name: S3_AWS_ACCESS_KEY_ID, valueFrom: {secretKeyRef: {name: onyx-objectstorage, key: s3_aws_access_key_id}}}
+            - {name: S3_AWS_SECRET_ACCESS_KEY, valueFrom: {secretKeyRef: {name: onyx-objectstorage, key: s3_aws_secret_access_key}}}
+          resources:
+            requests: {cpu: "500m", memory: "512Mi"}
+            limits: {cpu: "2000m", memory: "2Gi"}
