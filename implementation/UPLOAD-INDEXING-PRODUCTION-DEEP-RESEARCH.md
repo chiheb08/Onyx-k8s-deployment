@@ -138,6 +138,84 @@ The variables below are directly tied to upload/index/retrieval behavior in Onyx
 
 ---
 
+## 4.7 Exactly where to inject these env vars (files in your repo)
+
+Use this mapping so you know exactly what to edit.
+
+### A) If you deploy from `new_manifests_values_yaml/` (recommended newer set)
+
+- **Non-secret env vars** (timeouts, upload limits, queue concurrency, indexing toggles):
+  - edit `new_manifests_values_yaml/02-configmap.yaml` (`env-configmap`)
+  - examples to place there:
+    - `MAX_ALLOWED_UPLOAD_SIZE_MB`
+    - `DEFAULT_USER_FILE_MAX_UPLOAD_SIZE_MB`
+    - `MAX_FILE_SIZE_BYTES`
+    - `MAX_DOCUMENT_CHARS`
+    - `CELERY_WORKER_DOCPROCESSING_CONCURRENCY`
+    - `CELERY_WORKER_DOCFETCHING_CONCURRENCY`
+    - `CELERY_WORKER_USER_FILE_PROCESSING_CONCURRENCY`
+    - `CELERY_WORKER_PRIMARY_CONCURRENCY`
+    - `CELERY_WORKER_LIGHT_CONCURRENCY`
+    - `CELERY_WORKER_HEAVY_CONCURRENCY`
+    - `CELERY_WORKER_LIGHT_PREFETCH_MULTIPLIER`
+    - `NUM_INDEXING_WORKERS`
+    - `DISABLE_INDEX_UPDATE_ON_SWAP`
+    - `ENABLE_MULTIPASS_INDEXING`
+    - `INDEXING_EMBEDDING_MODEL_NUM_THREADS`
+    - `LLM_SOCKET_READ_TIMEOUT`
+    - `QA_TIMEOUT`
+    - `ENABLE_OPENSEARCH_INDEXING_FOR_ONYX`
+    - `ENABLE_OPENSEARCH_RETRIEVAL_FOR_ONYX`
+    - `DEFAULT_OPENSEARCH_CLIENT_TIMEOUT_S`
+    - `DEFAULT_OPENSEARCH_QUERY_TIMEOUT_S`
+
+- **Secret env vars** (credentials/passwords):
+  - edit `new_manifests_values_yaml/01-secrets-template.yaml`
+  - keys used by manifests:
+    - Postgres: `onyx-postgresql` -> `username`, `password`
+    - Redis: `onyx-redis` -> `redis_password`
+    - Object storage: `onyx-objectstorage` -> `s3_aws_access_key_id`, `s3_aws_secret_access_key`
+    - OpenSearch: `onyx-opensearch` -> `opensearch_admin_username`, `opensearch_admin_password`
+
+- **Where workers receive env vars**:
+  - `new_manifests_values_yaml/09-celery-workers-core.yaml`
+  - `new_manifests_values_yaml/10-celery-workers-additional.yaml`
+  - these files use `envFrom: configMapRef: env-configmap` + secret refs.
+
+- **Where API receives env vars**:
+  - `new_manifests_values_yaml/07-api-server.yaml`
+
+### B) If you still deploy from current `manifests/` folder
+
+- **Non-secret env vars**:
+  - edit `manifests/05-configmap.yaml` (`onyx-config`)
+
+- **Secret env vars**:
+  - edit secret manifests/secret manager values used by:
+    - `postgresql-secret`
+    - `redis-secret`
+    - your S3 secret (or Vault/ESO mapping)
+
+- **Where Celery env vars are consumed**:
+  - `manifests/10-celery-beat.yaml`
+  - `manifests/11-celery-worker-primary.yaml`
+  - `manifests/12-celery-worker-light.yaml`
+  - `manifests/13-celery-worker-heavy.yaml`
+  - `manifests/14-celery-worker-docfetching.yaml`
+  - `manifests/15-celery-worker-docprocessing.yaml`
+  - `manifests/16-celery-worker-user-file-processing.yaml`
+
+- **Where API env vars are consumed**:
+  - `manifests/07-api-server.yaml`
+
+### C) Practical rule
+
+- put **all tunables** in ConfigMap (`02-configmap.yaml` or `05-configmap.yaml`)
+- put **all credentials** in Secret/Vault-backed Secret
+- do not hardcode credentials in deployment files
+
+---
+
 ## 5) Suggested starting values (safe baseline)
 
 These are practical starting points, not universal truths:
