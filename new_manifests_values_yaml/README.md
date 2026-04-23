@@ -42,8 +42,9 @@ This set is intended for your environment where you already use **your own objec
 12. `10-nginx-gateway.yaml`
 13. `11-opensearch-pvc.yaml`
 14. `11-opensearch.yaml`
-15. `ARCHITECTURE.md`
-16. `README.md`
+15. `opensearch-custom/Dockerfile`
+16. `ARCHITECTURE.md`
+17. `README.md`
 
 ## Deployment order
 
@@ -70,3 +71,16 @@ kubectl apply -f new_manifests_values_yaml/10-nginx-gateway.yaml
 - Set your real `S3_ENDPOINT_URL` and `S3_FILE_STORE_BUCKET_NAME` in `02-configmap.yaml`.
 - Decide whether to keep OpenSearch enabled from day one (`ENABLE_OPENSEARCH_INDEXING_FOR_ONYX`).
 - Add PVC/PV for stateful services (PostgreSQL, Vespa, OpenSearch) for production durability.
+- Build and push the custom OpenSearch image from `opensearch-custom/Dockerfile`, then update `11-opensearch.yaml` image value.
+
+## Build custom OpenSearch image (OpenShift non-root fix)
+
+```bash
+docker build -t <your-registry>/onyx-opensearch:3.4.0-uid1000 \
+  -f new_manifests_values_yaml/opensearch-custom/Dockerfile \
+  new_manifests_values_yaml/opensearch-custom
+
+docker push <your-registry>/onyx-opensearch:3.4.0-uid1000
+```
+
+Then set `image:` in `11-opensearch.yaml` to the pushed image and apply the manifest.

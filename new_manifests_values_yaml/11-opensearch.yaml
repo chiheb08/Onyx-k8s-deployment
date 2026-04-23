@@ -27,13 +27,22 @@ spec:
       labels:
         app: opensearch
     spec:
+      securityContext:
+        fsGroup: 1000
       volumes:
         - name: opensearch-data
           persistentVolumeClaim:
             claimName: opensearch-pvc
       containers:
         - name: opensearch
-          image: opensearchproject/opensearch:3.4.0
+          # Build from new_manifests_values_yaml/opensearch-custom/Dockerfile
+          # and push to your registry, then replace this image reference.
+          image: your-registry/onyx-opensearch:3.4.0-uid1000
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
           env:
             - name: discovery.type
               value: single-node
