@@ -40,9 +40,10 @@ This set is intended for your environment where you already use **your own objec
 10. `09-celery-workers-core.yaml`
 11. `10-celery-workers-additional.yaml`
 12. `10-nginx-gateway.yaml`
-13. `11-opensearch.yaml`
-14. `ARCHITECTURE.md`
-15. `README.md`
+13. `11-opensearch-pvc.yaml`
+14. `11-opensearch.yaml`
+15. `ARCHITECTURE.md`
+16. `README.md`
 
 ## Deployment order
 
@@ -54,6 +55,7 @@ kubectl apply -f new_manifests_values_yaml/03-postgresql.yaml
 kubectl apply -f new_manifests_values_yaml/04-redis.yaml
 kubectl apply -f new_manifests_values_yaml/05-vespa.yaml
 kubectl apply -f new_manifests_values_yaml/06-model-servers.yaml
+kubectl apply -f new_manifests_values_yaml/11-opensearch-pvc.yaml
 kubectl apply -f new_manifests_values_yaml/11-opensearch.yaml
 kubectl apply -f new_manifests_values_yaml/07-api-server.yaml
 kubectl apply -f new_manifests_values_yaml/08-web-server.yaml

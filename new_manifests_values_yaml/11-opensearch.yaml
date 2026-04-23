@@ -27,6 +27,10 @@ spec:
       labels:
         app: opensearch
     spec:
+      volumes:
+        - name: opensearch-data
+          persistentVolumeClaim:
+            claimName: opensearch-pvc
       containers:
         - name: opensearch
           image: opensearchproject/opensearch:3.4.0
@@ -44,6 +48,9 @@ spec:
               value: "-Xmx4g -Xms4g"
           ports:
             - containerPort: 9200
+          volumeMounts:
+            - name: opensearch-data
+              mountPath: /usr/share/opensearch/data
           resources:
             requests: {cpu: "2000m", memory: "4Gi"}
             limits: {cpu: "4000m", memory: "8Gi"}
