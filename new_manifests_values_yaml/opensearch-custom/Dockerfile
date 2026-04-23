@@ -2,9 +2,11 @@ FROM opensearchproject/opensearch:3.4.0
 
 USER 0
 
-# OpenShift-friendly permissions for non-root execution (uid/gid 1000).
-RUN chown -R 1000:1000 /usr/share/opensearch \
-    && chmod -R g+rwX /usr/share/opensearch \
-    && chmod +x /usr/share/opensearch/opensearch-docker-entrypoint.sh
+# OpenShift-friendly permissions for arbitrary non-root UIDs.
+# Do NOT pin USER 1000. Let OpenShift run with a random UID.
+RUN chgrp -R 0 /usr/share/opensearch \
+    && chmod -R g=u /usr/share/opensearch \
+    && chmod 0755 /usr/share/opensearch \
+    && chmod 0755 /usr/share/opensearch/opensearch-docker-entrypoint.sh
 
-USER 1000
+# Intentionally no USER here: OpenShift will inject a random non-root UID.
