@@ -22,7 +22,6 @@ This set is intended for your environment where you already use **your own objec
 
 ## Intentionally excluded
 
-- MinIO (`12-minio.yaml`)
 - Code interpreter (`13-code-interpreter.yaml`)
 - Slack bot (`14-slackbot.yaml`)
 
@@ -42,9 +41,11 @@ This set is intended for your environment where you already use **your own objec
 12. `10-nginx-gateway.yaml`
 13. `11-opensearch-pvc.yaml`
 14. `11-opensearch.yaml`
-15. `opensearch-custom/Dockerfile`
-16. `ARCHITECTURE.md`
-17. `README.md`
+15. `12-minio-pvc.yaml`
+16. `12-minio.yaml`
+17. `opensearch-custom/Dockerfile`
+18. `ARCHITECTURE.md`
+19. `README.md`
 
 ## Deployment order
 
@@ -58,6 +59,8 @@ kubectl apply -f new_manifests_values_yaml/05-vespa.yaml
 kubectl apply -f new_manifests_values_yaml/06-model-servers.yaml
 kubectl apply -f new_manifests_values_yaml/11-opensearch-pvc.yaml
 kubectl apply -f new_manifests_values_yaml/11-opensearch.yaml
+kubectl apply -f new_manifests_values_yaml/12-minio-pvc.yaml
+kubectl apply -f new_manifests_values_yaml/12-minio.yaml
 kubectl apply -f new_manifests_values_yaml/07-api-server.yaml
 kubectl apply -f new_manifests_values_yaml/08-web-server.yaml
 kubectl apply -f new_manifests_values_yaml/09-celery-workers-core.yaml
