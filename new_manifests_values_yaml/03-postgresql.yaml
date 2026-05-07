@@ -25,9 +25,17 @@ spec:
       labels:
         app: postgresql
     spec:
+      securityContext:
+        runAsUser: 1001000000
+        runAsNonRoot: true
       containers:
         - name: postgresql
           image: postgres:15.2-alpine
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+            allowPrivilegeEscalation: false
           env:
             - name: POSTGRES_USER
               valueFrom:

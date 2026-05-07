@@ -28,6 +28,8 @@ spec:
         app: opensearch
     spec:
       securityContext:
+        runAsUser: 1001000000
+        runAsNonRoot: true
         fsGroup: 1000
       volumes:
         - name: opensearch-data
@@ -39,6 +41,9 @@ spec:
           # and push to your registry, then replace this image reference.
           image: your-registry/onyx-opensearch:3.4.0-uid-arbitrary
           securityContext:
+            capabilities:
+              drop:
+                - ALL
             runAsNonRoot: true
             allowPrivilegeEscalation: false
           env:

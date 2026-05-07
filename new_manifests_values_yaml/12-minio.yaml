@@ -29,9 +29,17 @@ spec:
       labels:
         app: minio
     spec:
+      securityContext:
+        runAsUser: 1001000000
+        runAsNonRoot: true
       containers:
         - name: minio
           image: minio/minio:latest
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+            allowPrivilegeEscalation: false
           args:
             - server
             - /data
