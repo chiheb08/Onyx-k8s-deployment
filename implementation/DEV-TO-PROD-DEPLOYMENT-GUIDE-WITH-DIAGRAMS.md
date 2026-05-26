@@ -508,7 +508,9 @@ timeline
 
 | Topic | Path |
 |-------|------|
+| **OpenShift operator pilot (step-by-step)** | `implementation/OPENSHIFT-OPERATOR-PILOT-STEP-BY-STEP.md` |
 | Operator effort & risks | `implementation/POSTGRES-OPENSEARCH-OPERATOR-MIGRATION-RESEARCH.md` |
+| Operator sample YAML | `new_manifests_values_yaml/operators/` |
 | Postgres dump/restore | `docs/migrations/MIGRATING-POSTGRES-TO-NEW-CLUSTER.md` |
 | OpenShift UID | `implementation/COLLEAGUE-UID-TEST-EASY-DIAGRAM.md` |
 | Deployment risks | `implementation/DEPLOYMENT-RISK-DEEP-RESEARCH-AND-SOLUTION-ARCHITECTURE.md` |

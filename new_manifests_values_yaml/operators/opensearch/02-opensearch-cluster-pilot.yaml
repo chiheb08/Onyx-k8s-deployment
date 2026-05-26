@@ -1,0 +1,56 @@
+# OpenSearch Kubernetes Operator — pilot cluster (single node) for OpenShift.
+# Requires: opensearch-operator installed (Helm) with SKIP_INIT_CONTAINER for OpenShift.
+#
+# Helm install example:
+#   helm install opensearch-operator opensearch-operator/opensearch-operator \
+#     --namespace opensearch-operator-system --create-namespace \
+#     --set manager.extraEnv[0].name=SKIP_INIT_CONTAINER \
+#     --set manager.extraEnv[0].value=true
+#
+# Docs: https://github.com/opensearch-project/opensearch-k8s-operator/blob/main/docs/userguide/main.md
+apiVersion: opensearch.org/v1
+kind: OpenSearchCluster
+metadata:
+  name: onyx-os
+  namespace: onyx-infra
+spec:
+  general:
+    serviceName: onyx-os
+    version: "3.4.0"
+  # Custom OpenShift-friendly image (build opensearch-custom/Dockerfile)
+  # If your operator version supports spec.general.image, uncomment:
+  # image: "<your-registry>/onyx-opensearch:3.4.0-uid-arbitrary"
+    setVMMaxMapCount: false
+    podSecurityContext:
+      runAsNonRoot: true
+      fsGroup: 1000
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    additionalConfig:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+
+  dashboards:
+    enable: false
+
+  nodePools:
+    - component: nodes
+      replicas: 1
+      diskSize: 20Gi
+      jvm: -Xmx2g -Xms2g
+      persistence:
+        pvc:
+          storageClass: <STORAGE_CLASS>
+      resources:
+        requests:
+          cpu: "1"
+          memory: 4Gi
+        limits:
+          cpu: "2"
+          memory: 8Gi
+      roles:
+        - cluster_manager
+        - data

@@ -1,0 +1,57 @@
+# CloudNativePG pilot cluster — single instance for OpenShift dev.
+# Requires: CNPG operator installed cluster-wide.
+# Docs: https://cloudnative-pg.io/documentation/current/
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: onyx-pg
+  namespace: onyx-infra
+spec:
+  instances: 1
+
+  imageName: ghcr.io/cloudnative-pg/postgresql:15
+
+  storage:
+    size: 20Gi
+    storageClass: <STORAGE_CLASS>
+
+  serviceAccountTemplate:
+    metadata:
+      name: onyx-data-plane
+
+  bootstrap:
+    initdb:
+      database: postgres
+      owner: postgres
+      secret:
+        name: onyx-postgresql
+
+  postgresql:
+    parameters:
+      max_connections: "200"
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  # Uncomment after MinIO bucket onyx-pg-backups exists and 01-backup-s3-secret is filled.
+  # backup:
+  #   barmanObjectStore:
+  #     destinationPath: s3://onyx-pg-backups/
+  #     endpointURL: http://minio.onyx-infra.svc.cluster.local:9000
+  #     s3Credentials:
+  #       accessKeyId:
+  #         name: onyx-pg-backup-s3
+  #         key: ACCESS_KEY_ID
+  #       secretAccessKey:
+  #         name: onyx-pg-backup-s3
+  #         key: SECRET_ACCESS_KEY
+  #     wal:
+  #       compression: gzip
+  #     data:
+  #       compression: gzip
+  #   retentionPolicy: "7d"
