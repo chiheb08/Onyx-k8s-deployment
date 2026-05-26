@@ -17,9 +17,7 @@ spec:
   general:
     serviceName: onyx-os
     version: "3.4.0"
-  # Custom OpenShift-friendly image (build opensearch-custom/Dockerfile)
-  # If your operator version supports spec.general.image, uncomment:
-  # image: "<your-registry>/onyx-opensearch:3.4.0-uid-arbitrary"
+    # image: "<your-registry>/onyx-opensearch:3.4.0-uid-arbitrary"
     setVMMaxMapCount: false
     podSecurityContext:
       runAsNonRoot: true
