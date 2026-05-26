@@ -10,6 +10,7 @@
 
 **Related docs in this repo:**
 
+- **Dev → prod diagrams & step-by-step focus:** [DEV-TO-PROD-DEPLOYMENT-GUIDE-WITH-DIAGRAMS.md](./DEV-TO-PROD-DEPLOYMENT-GUIDE-WITH-DIAGRAMS.md)
 - Current manifests: `new_manifests_values_yaml/03-postgresql.yaml`, `11-opensearch.yaml`, `02-configmap.yaml`
 - Postgres logical migration: `docs/migrations/MIGRATING-POSTGRES-TO-NEW-CLUSTER.md`
 - Vector backend change (separate program): `litellm-integration/VESPA-TO-PGVECTOR-MIGRATION.md`
