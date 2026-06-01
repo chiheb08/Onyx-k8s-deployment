@@ -4,7 +4,11 @@
 
 **Scope:** Onyx on OpenShift/Kubernetes, namespace `onyx-infra`, manifests in `new_manifests_values_yaml/`.
 
-**Related:** [TESTING-USER-FILE-DELETION-CONSISTENCY.md](./TESTING-USER-FILE-DELETION-CONSISTENCY.md), [FILE-DELETION-PROCESS-EXPLAINED.md](../../documentation/FILE-DELETION-PROCESS-EXPLAINED.md)
+**Related:**
+
+- **[IN-POD-REDIS-CELERY-DELETE-CHECKS.md](./IN-POD-REDIS-CELERY-DELETE-CHECKS.md)** — **start here** if you only use the **pod terminal** (no `oc`/`kubectl`)
+- [TESTING-USER-FILE-DELETION-CONSISTENCY.md](./TESTING-USER-FILE-DELETION-CONSISTENCY.md)
+- [FILE-DELETION-PROCESS-EXPLAINED.md](../../documentation/FILE-DELETION-PROCESS-EXPLAINED.md)
 
 ---
 
@@ -57,7 +61,7 @@ Heavy **upload/indexing** (`user_file_processing`) can **starve** `user_file_del
 
 | ID | Hypothesis | How to confirm | Fix |
 |----|------------|----------------|-----|
-| H1 | Worker down / CrashLoop / OOM | `oc get pods -l app=celery-worker-user-file-processing` | Fix resources, restart |
+| H1 | Worker down / CrashLoop / OOM | UI: pod not Running for `celery-worker-user-file-processing` | Fix resources, restart pod |
 | H2 | Queue backlog, worker saturated | `LLEN user_file_delete` high, slow log progress | Scale workers, dedicated delete queue |
 | H3 | Upload queue starves delete (same worker) | `LLEN user_file_processing` high while delete stuck | Split queues to separate deployments |
 | H4 | Tasks never enqueued | `DELETING` count high, `LLEN user_file_delete` = 0 | Beat re-queue, manual re-enqueue, fix API/redis |
@@ -71,15 +75,11 @@ Heavy **upload/indexing** (`user_file_processing`) can **starve** `user_file_del
 
 ## 3) Phase 0 — Investigation (30–60 min, copy/paste)
 
-Set context once:
-
-```bash
-export NAMESPACE=onyx-infra
-export REDIS_POD=$(oc get pod -n $NAMESPACE -l app=redis -o jsonpath='{.items[0].metadata.name}')
-export REDIS_PASS=$(oc get secret onyx-redis -n $NAMESPACE -o jsonpath='{.data.redis_password}' | base64 -d)
-```
+> **Pod terminal only?** Use **[IN-POD-REDIS-CELERY-DELETE-CHECKS.md](./IN-POD-REDIS-CELERY-DELETE-CHECKS.md)** — all steps use shells inside `postgresql`, `redis`, and `celery-worker-*` pods.
 
 ### 3.1 Postgres — backlog size
+
+**Pod:** `postgresql`
 
 ```sql
 SELECT status, COUNT(*) FROM public.user_file GROUP BY status ORDER BY status;
@@ -92,11 +92,18 @@ FROM public.user_file WHERE status = 'DELETING';
 
 ### 3.2 Redis — queue depths
 
+**Pod:** `redis`
+
 ```bash
-for q in user_file_delete user_file_processing user_file_project_sync celery; do
-  echo -n "$q: "
-  oc exec -n $NAMESPACE "$REDIS_POD" -- redis-cli -a "$REDIS_PASS" LLEN "$q" 2>/dev/null
-done
+redis-cli -a "$REDIS_PASSWORD" LLEN user_file_delete
+redis-cli -a "$REDIS_PASSWORD" LLEN user_file_processing
+redis-cli -a "$REDIS_PASSWORD" LLEN user_file_project_sync
+```
+
+From **api-server** or **celery-worker** pod if Redis pod has no shell:
+
+```bash
+redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" LLEN user_file_delete
 ```
 
 **Interpretation:**
@@ -109,36 +116,38 @@ done
 
 ### 3.3 Worker health
 
+**Pod:** `celery-worker-user-file-processing` (UI → Logs, or terminal):
+
 ```bash
-oc get deploy,pods -n $NAMESPACE | grep -E 'celery-worker-user-file|celery-beat|redis'
-
-oc logs -n $NAMESPACE deploy/celery-worker-user-file-processing --tail=300 | \
-  grep -E 'process_single_user_file_delete|ERROR|Error|exception|429|Vespa|lock|Failed'
-
-oc logs -n $NAMESPACE deploy/celery-beat --tail=100 | grep -i user_file
+celery -A onyx.background.celery.versioned_apps.user_file_processing inspect active
 ```
+
+Search logs for: `process_single_user_file_delete`, `429`, `Failed`, `Vespa`, `Error`.
+
+**Pod:** `celery-beat` — logs should show periodic tasks if beat is healthy.
 
 ### 3.4 Redis server health
 
+**Pod:** `redis`
+
 ```bash
-oc exec -n $NAMESPACE "$REDIS_POD" -- redis-cli -a "$REDIS_PASS" INFO memory | grep -E 'used_memory_human|maxmemory|evicted_keys'
-oc exec -n $NAMESPACE "$REDIS_POD" -- redis-cli -a "$REDIS_PASS" PING
+redis-cli -a "$REDIS_PASSWORD" PING
+redis-cli -a "$REDIS_PASSWORD" INFO memory | grep -E 'used_memory_human|maxmemory|evicted_keys'
 ```
 
 ### 3.5 Vespa (delete step)
 
-```bash
-oc logs -n $NAMESPACE statefulset/vespa --tail=200 | grep -E '429|throttl|error' || true
-```
+**Pod:** `vespa-0` (or your Vespa pod) — open **Logs** in UI, search `429` or `throttl`.
 
 ### 3.6 Env consistency (API vs worker)
 
+**Pod:** `api-server` then `celery-worker-user-file-processing`:
+
 ```bash
-for dep in api-server celery-worker-user-file-processing; do
-  echo "=== $dep ==="
-  oc exec -n $NAMESPACE deploy/$dep -- sh -c 'echo REDIS_HOST=$REDIS_HOST REDIS_PORT=$REDIS_PORT'
-done
+echo "REDIS_HOST=$REDIS_HOST REDIS_PORT=$REDIS_PORT"
 ```
+
+Values should match.
 
 ### 3.7 Record findings (template)
 
@@ -165,31 +174,22 @@ Diagnosis (H1–H9):
 
 ### Step 2 — Restore worker capacity
 
-```bash
-# Immediate: more replicas (parallel deletes for different file IDs)
-oc scale deployment celery-worker-user-file-processing -n onyx-infra --replicas=3
-
-# If OOMKilled — raise memory limit in 10-celery-workers-additional.yaml first
-```
+Ask your platform admin to scale **celery-worker-user-file-processing** or deploy **celery-worker-user-file-delete** (manifests in repo).  
+You can monitor drain from **redis** pod: `redis-cli -a "$REDIS_PASSWORD" LLEN user_file_delete` every minute.
 
 ### Step 3 — Deploy dedicated delete worker (recommended)
 
-Apply the split manifests so deletes are not competing with uploads:
-
-```bash
-# See new_manifests_values_yaml/10-celery-worker-user-file-delete-dedicated.yaml
-# Updates 10-celery-workers-additional.yaml to remove user_file_delete from mixed worker
-oc apply -f new_manifests_values_yaml/10-celery-workers-additional.yaml
-oc apply -f new_manifests_values_yaml/10-celery-worker-user-file-delete-dedicated.yaml
-```
+Manifests: `new_manifests_values_yaml/10-celery-worker-user-file-delete-dedicated.yaml` + updated `10-celery-workers-additional.yaml` (applied via your GitOps/admin process).
 
 ### Step 4 — Watch drain
 
+**Pod:** `redis` — run every minute:
+
 ```bash
-watch -n 15 'echo -n "delete queue: "; oc exec -n onyx-infra '"$REDIS_POD"' -- redis-cli -a '"$REDIS_PASS"' LLEN user_file_delete 2>/dev/null'
+redis-cli -a "$REDIS_PASSWORD" LLEN user_file_delete
 ```
 
-Postgres:
+**Pod:** `postgresql`:
 
 ```sql
 SELECT COUNT(*) FROM public.user_file WHERE status = 'DELETING';
@@ -203,11 +203,10 @@ If `LLEN user_file_delete` is 0 but many `DELETING` rows:
 2. Use diagnostic script: `scripts/diagnose-user-file-delete-backlog.sh`
 3. Manual re-enqueue from worker pod (per ID or batched) — maintenance window.
 
-Example (single file, adjust tenant):
+Example (single file) — **inside** `celery-worker-user-file-processing` pod terminal:
 
 ```bash
-oc exec -n onyx-infra deploy/celery-worker-user-file-processing -- \
-  celery -A onyx.background.celery.versioned_apps.user_file_processing call \
+celery -A onyx.background.celery.versioned_apps.user_file_processing call \
   onyx.background.celery.tasks.user_file_processing.tasks.process_single_user_file_delete \
   --kwargs='{"user_file_id":"<UUID>","tenant_id":"public"}'
 ```
@@ -259,11 +258,11 @@ Current manifest (`04-redis.yaml`):
 - High Celery traffic + cache keys → eviction of broker lists (task loss) — **H7**
 - Password mismatch → workers cannot consume — **H9**
 
-**Checks:**
+**Checks (pod `redis`):**
 
 ```bash
-oc exec -n onyx-infra "$REDIS_POD" -- redis-cli -a "$REDIS_PASS" INFO stats | grep evicted_keys
-oc exec -n onyx-infra "$REDIS_POD" -- redis-cli -a "$REDIS_PASS" CLIENT LIST | head
+redis-cli -a "$REDIS_PASSWORD" INFO stats | grep evicted_keys
+redis-cli -a "$REDIS_PASSWORD" CLIENT LIST | head
 ```
 
 **Hardening (optional):** Increase to `1gb`+ and monitor `evicted_keys`. Consider separate Redis for broker vs cache in large deployments (enterprise pattern).
@@ -317,7 +316,8 @@ If SQL bulk cleanup is required as last resort, pair with Vespa delete per `docu
 |------|---------|
 | `10-celery-worker-user-file-delete-dedicated.yaml` | Worker only on `user_file_delete`, 2 replicas default |
 | `10-celery-workers-additional.yaml` | Mixed worker: **removed** `user_file_delete` from `-Q` |
-| `scripts/diagnose-user-file-delete-backlog.sh` | One-shot diagnostic output |
+| `scripts/in-pod-check-delete-backlog.sh` | Run **inside** api/celery pod terminal |
+| `scripts/diagnose-user-file-delete-backlog.sh` | Cluster-admin diagnostic (optional) |
 
 ---
 
