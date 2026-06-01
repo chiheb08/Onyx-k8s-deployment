@@ -135,7 +135,8 @@ spec:
       containers:
         - name: celery-worker-user-file-processing
           image: onyxdotapp/onyx-backend:v3.1.1
-          command: ["celery","-A","onyx.background.celery.versioned_apps.user_file_processing","worker","--loglevel=INFO","--hostname=user-file-processing@%n","-Q","user_file_processing,user_file_project_sync,user_file_delete"]
+          # user_file_delete moved to 10-celery-worker-user-file-delete-dedicated.yaml
+          command: ["celery","-A","onyx.background.celery.versioned_apps.user_file_processing","worker","--loglevel=INFO","--hostname=user-file-processing@%n","-Q","user_file_processing,user_file_project_sync"]
           envFrom: [{configMapRef: {name: env-configmap}}]
           env:
             - {name: POSTGRES_USER, valueFrom: {secretKeyRef: {name: onyx-postgresql, key: username}}}

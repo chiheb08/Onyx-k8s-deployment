@@ -1,0 +1,84 @@
+# Dedicated Celery worker for user file DELETION only.
+# Prevents user_file_processing (upload/index) from starving user_file_delete.
+#
+# Apply AFTER updating 10-celery-workers-additional.yaml (user_file_delete removed from mixed worker).
+#
+#   oc apply -f new_manifests_values_yaml/10-celery-workers-additional.yaml
+#   oc apply -f new_manifests_values_yaml/10-celery-worker-user-file-delete-dedicated.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-user-file-delete
+  namespace: onyx-infra
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: celery-worker-user-file-delete
+  template:
+    metadata:
+      labels:
+        app: celery-worker-user-file-delete
+        scope: onyx-backend-celery
+    spec:
+      containers:
+        - name: celery-worker-user-file-delete
+          image: onyxdotapp/onyx-backend:v3.1.1
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.user_file_processing
+            - worker
+            - --pool=threads
+            - --concurrency=4
+            - --prefetch-multiplier=1
+            - --loglevel=INFO
+            - --hostname=user-file-delete@%n
+            - -Q
+            - user_file_delete
+          envFrom:
+            - configMapRef:
+                name: env-configmap
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-postgresql
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-postgresql
+                  key: password
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-redis
+                  key: redis_password
+            - name: S3_AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-objectstorage
+                  key: s3_aws_access_key_id
+            - name: S3_AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-objectstorage
+                  key: s3_aws_secret_access_key
+            - name: OPENSEARCH_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-opensearch
+                  key: opensearch_admin_username
+            - name: OPENSEARCH_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-opensearch
+                  key: opensearch_admin_password
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
