@@ -4,6 +4,8 @@
 
 Open the terminal on the pod named in each section (UI: Workloads → Pod → Terminal).
 
+**Full technical reference (glossary, workflows, db15, `:1` queues):** [REDIS-IN-ONYX-TECHNICAL-OVERVIEW.md](./REDIS-IN-ONYX-TECHNICAL-OVERVIEW.md)
+
 ---
 
 ## Which pod to open?
@@ -79,10 +81,14 @@ Expected: `PONG`
 **Queue lengths (most important):**
 
 ```bash
-redis-cli -a "$REDIS_PASSWORD" LLEN user_file_delete
-redis-cli -a "$REDIS_PASSWORD" LLEN user_file_processing
-redis-cli -a "$REDIS_PASSWORD" LLEN user_file_project_sync
+# Celery broker uses database 15 (not default db0)
+redis-cli -a "$REDIS_PASSWORD" -n 15 LLEN user_file_delete:1
+redis-cli -a "$REDIS_PASSWORD" -n 15 LLEN user_file_delete
+redis-cli -a "$REDIS_PASSWORD" -n 15 LLEN user_file_processing:1
+redis-cli -a "$REDIS_PASSWORD" -n 15 LLEN user_file_processing
 ```
+
+> **Important:** Onyx often uses priority queue keys with suffix `:1` (e.g. `user_file_delete:1`). `LLEN user_file_delete` may be `0` while `user_file_delete:1` has the real backlog.
 
 | Queue | What it means |
 |-------|----------------|
