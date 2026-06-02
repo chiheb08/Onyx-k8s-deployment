@@ -33,6 +33,7 @@ spec:
             - onyx.background.celery.versioned_apps.beat
             - beat
             - --loglevel=INFO
+            - --schedule=/tmp/celerybeat-schedule
           envFrom:
             - configMapRef:
                 name: onyx-config

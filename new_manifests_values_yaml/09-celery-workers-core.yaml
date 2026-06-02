@@ -101,7 +101,7 @@ spec:
       containers:
         - name: celery-beat
           image: onyxdotapp/onyx-backend:v3.1.1
-          command: ["celery","-A","onyx.background.celery.versioned_apps.beat","beat","--loglevel=INFO"]
+          command: ["celery","-A","onyx.background.celery.versioned_apps.beat","beat","--loglevel=INFO","--schedule=/tmp/celerybeat-schedule"]
           envFrom:
             - configMapRef:
                 name: env-configmap
