@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Onyx-like File Lifecycle Demo</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+      th, td { border: 1px solid #ddd; padding: 8px; font-size: 14px; }
+      th { background: #f4f4f4; text-align: left; }
+      code { background: #f8f8f8; padding: 2px 6px; border-radius: 4px; }
+      .status-COMPLETED { color: #0a7d2c; font-weight: bold; }
+      .status-DELETING { color: #b05f00; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <h1>Onyx-like File Lifecycle Demo</h1>
+    <p>
+      Upload sets a DB row to <code>COMPLETED</code>. Delete sets <code>DELETING</code> then a Celery worker deletes MinIO object and removes the DB row.
+    </p>
+
+    <h2>Upload File</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+      <input type="file" name="file" required />
+      <button type="submit">Upload</button>
+    </form>
+
+    <h2>Current Files (file_record table)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Filename</th>
+          <th>Status</th>
+          <th>Object Key</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td><code>{{ f.id }}</code></td>
+          <td>{{ f.filename }}</td>
+          <td class="status-{{ f.status.value }}">{{ f.status.value }}</td>
+          <td><code>{{ f.object_key }}</code></td>
+          <td>
+            <form action="/files/{{ f.id }}/delete" method="post" style="display:inline;">
+              <input type="hidden" name="reason" value="ui_button" />
+              <button type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>Delete Audit (delete_audit table)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>File ID</th>
+          <th>Filename</th>
+          <th>Event</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in audits %}
+        <tr>
+          <td>{{ a.created_at }}</td>
+          <td><code>{{ a.file_id }}</code></td>
+          <td>{{ a.filename }}</td>
+          <td><code>{{ a.event }}</code></td>
+          <td>{{ a.message }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>
