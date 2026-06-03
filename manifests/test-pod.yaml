@@ -2,7 +2,7 @@
 # Test Pod for S3 Connectivity Testing
 # ============================================================================
 # S3-focused debug pod. S3 config from ConfigMap, credentials from Vault.
-# Tools: aws-cli, curl, dig, jq, nc
+# Tools: curl, dig, nc (no aws CLI – use curl for S3 connectivity)
 #
 # REQUIRED: Configure Vault annotations (path, role) for S3 credentials.
 # S3 config (endpoint, bucket) can come from onyx-config or a custom ConfigMap.

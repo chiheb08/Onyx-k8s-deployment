@@ -31,9 +31,9 @@ data:
   INTERNAL_URL: "http://api-server.onyx-infra.svc.cluster.local:8080"
 
   FILE_STORE_BACKEND: "s3"
-  S3_ENDPOINT_URL: "https://your-s3-endpoint:443"
-  S3_FILE_STORE_BUCKET_NAME: "your-bucket"
-  S3_VERIFY_SSL: "true"
+  S3_ENDPOINT_URL: "http://minio.onyx-infra.svc.cluster.local:9000"
+  S3_FILE_STORE_BUCKET_NAME: "onyx-file-store"
+  S3_VERIFY_SSL: "false"
   S3_GENERATE_LOCAL_CHECKSUM: "false"
 
   QA_TIMEOUT: "120"
