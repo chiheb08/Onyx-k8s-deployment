@@ -6,7 +6,7 @@ metadata:
   labels:
     app: onyx-nginx
   annotations:
-    haproxy.router.openshift.io/timeout: 10m
+    haproxy.router.openshift.io/timeout: 30m
 spec:
   to:
     kind: Service
