@@ -16,7 +16,9 @@ oc adm policy add-scc-to-user anyuid -z onyx -n onyx 2>/dev/null || true
 
 echo "==> Waiting for core rollouts..."
 oc rollout status deployment/onyx-api-server -n onyx --timeout=600s
-oc rollout status deployment/onyx-background -n onyx --timeout=600s
+oc rollout status deployment/onyx-celery-beat -n onyx --timeout=300s
+oc rollout status deployment/onyx-celery-worker-user-file-processing -n onyx --timeout=300s
+oc rollout status deployment/onyx-celery-worker-primary -n onyx --timeout=300s
 oc rollout status deployment/onyx-nginx -n onyx --timeout=300s
 
 echo ""

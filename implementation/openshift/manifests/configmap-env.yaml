@@ -33,6 +33,8 @@ data:
   ENABLE_OPENSEARCH_INDEXING_FOR_ONYX: "true"
   ENABLE_OPENSEARCH_RETRIEVAL_FOR_ONYX: "false"
 
+  # --- Sizing profile: 50 concurrent users (see docs/SIZING-50-USERS.md) ---
+
   # --- LLM tuning (vLLM is configured in Admin UI as openai_compatible) ---
   LLM_SOCKET_READ_TIMEOUT: "180"
   LITELLM_EXTRA_BODY: '{"think": false}'

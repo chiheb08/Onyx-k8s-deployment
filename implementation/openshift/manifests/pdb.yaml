@@ -30,3 +30,25 @@ spec:
   selector:
     matchLabels:
       app: onyx-opensearch
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: onyx-webserver-pdb
+  namespace: onyx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: onyx-webserver
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: onyx-celery-user-file-pdb
+  namespace: onyx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: onyx-celery-worker-user-file-processing

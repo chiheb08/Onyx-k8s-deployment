@@ -22,7 +22,7 @@ resources:
   - manifests/app/api.yaml
   - manifests/app/webserver.yaml
   - manifests/app/nginx.yaml
-  - manifests/app/background.yaml
+  - manifests/app/celery-workers.yaml
   - manifests/routes/onyx-route.yaml
   - manifests/pdb.yaml
 

@@ -21,7 +21,7 @@ metadata:
   labels:
     app: onyx-inference-model
 spec:
-  replicas: 1
+  replicas: 2
   strategy:
     type: Recreate
   selector:
@@ -51,8 +51,8 @@ spec:
                 name: onyx-secrets
           resources:
             requests:
-              cpu: "1"
-              memory: 3Gi
+              cpu: "2"
+              memory: 4Gi
             limits:
               cpu: "4"
               memory: 8Gi

@@ -1,0 +1,498 @@
+# Dedicated Celery workers (Helm-style) — sized for ~50 concurrent users.
+# Craft scheduled_tasks worker omitted (ENABLE_CRAFT=false).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-celery-beat
+  namespace: onyx
+  labels:
+    app: onyx-celery-beat
+    component: celery
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: onyx-celery-beat
+  template:
+    metadata:
+      labels:
+        app: onyx-celery-beat
+        component: celery
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-redis 6379; do sleep 2; done"]
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+      containers:
+        - name: celery-beat
+          image: onyxdotapp/onyx-backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "onyx.background.celery.versioned_apps.beat", "beat"]
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          startupProbe:
+            exec:
+              command: ["test", "-f", "/app/onyx/main.py"]
+            failureThreshold: 24
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-celery-worker-primary
+  namespace: onyx
+  labels:
+    app: onyx-celery-worker-primary
+    component: celery
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: onyx-celery-worker-primary
+  template:
+    metadata:
+      labels:
+        app: onyx-celery-worker-primary
+        component: celery
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-redis 6379; do sleep 2; done"]
+        - name: wait-for-opensearch
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-opensearch 9200; do sleep 5; done"]
+        - name: wait-for-api
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-api-server 8080; do sleep 5; done"]
+      containers:
+        - name: worker
+          image: onyxdotapp/onyx-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.primary
+            - worker
+            - --hostname=primary@%n
+            - -Q
+            - celery
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          startupProbe:
+            exec:
+              command: ["test", "-f", "/app/onyx/main.py"]
+            failureThreshold: 24
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-celery-worker-light
+  namespace: onyx
+  labels:
+    app: onyx-celery-worker-light
+    component: celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: onyx-celery-worker-light
+  template:
+    metadata:
+      labels:
+        app: onyx-celery-worker-light
+        component: celery
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-redis 6379; do sleep 2; done"]
+        - name: wait-for-opensearch
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-opensearch 9200; do sleep 5; done"]
+        - name: wait-for-api
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-api-server 8080; do sleep 5; done"]
+      containers:
+        - name: worker
+          image: onyxdotapp/onyx-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.light
+            - worker
+            - --hostname=light@%n
+            - -Q
+            - vespa_metadata_sync,connector_deletion,doc_permissions_upsert,checkpoint_cleanup,index_attempt_cleanup,opensearch_migration
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          startupProbe:
+            exec:
+              command: ["test", "-f", "/app/onyx/main.py"]
+            failureThreshold: 24
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-celery-worker-heavy
+  namespace: onyx
+  labels:
+    app: onyx-celery-worker-heavy
+    component: celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: onyx-celery-worker-heavy
+  template:
+    metadata:
+      labels:
+        app: onyx-celery-worker-heavy
+        component: celery
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-redis 6379; do sleep 2; done"]
+        - name: wait-for-opensearch
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-opensearch 9200; do sleep 5; done"]
+        - name: wait-for-api
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-api-server 8080; do sleep 5; done"]
+      containers:
+        - name: worker
+          image: onyxdotapp/onyx-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.heavy
+            - worker
+            - --hostname=heavy@%n
+            - -Q
+            - connector_pruning,connector_doc_permissions_sync,connector_external_group_sync,csv_generation,sandbox
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          startupProbe:
+            exec:
+              command: ["test", "-f", "/app/onyx/main.py"]
+            failureThreshold: 24
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-celery-worker-docprocessing
+  namespace: onyx
+  labels:
+    app: onyx-celery-worker-docprocessing
+    component: celery
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: onyx-celery-worker-docprocessing
+  template:
+    metadata:
+      labels:
+        app: onyx-celery-worker-docprocessing
+        component: celery
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-redis 6379; do sleep 2; done"]
+        - name: wait-for-opensearch
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-opensearch 9200; do sleep 5; done"]
+        - name: wait-for-indexing-model
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-indexing-model 9000; do sleep 5; done"]
+      containers:
+        - name: worker
+          image: onyxdotapp/onyx-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.docprocessing
+            - worker
+            - --hostname=docprocessing@%n
+            - -Q
+            - docprocessing
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 8Gi
+          startupProbe:
+            exec:
+              command: ["test", "-f", "/app/onyx/main.py"]
+            failureThreshold: 24
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-celery-worker-docfetching
+  namespace: onyx
+  labels:
+    app: onyx-celery-worker-docfetching
+    component: celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: onyx-celery-worker-docfetching
+  template:
+    metadata:
+      labels:
+        app: onyx-celery-worker-docfetching
+        component: celery
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-redis 6379; do sleep 2; done"]
+        - name: wait-for-opensearch
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-opensearch 9200; do sleep 5; done"]
+        - name: wait-for-api
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-api-server 8080; do sleep 5; done"]
+      containers:
+        - name: worker
+          image: onyxdotapp/onyx-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.docfetching
+            - worker
+            - --hostname=docfetching@%n
+            - -Q
+            - connector_doc_fetching
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 8Gi
+          startupProbe:
+            exec:
+              command: ["test", "-f", "/app/onyx/main.py"]
+            failureThreshold: 24
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-celery-worker-user-file-processing
+  namespace: onyx
+  labels:
+    app: onyx-celery-worker-user-file-processing
+    component: celery
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: onyx-celery-worker-user-file-processing
+  template:
+    metadata:
+      labels:
+        app: onyx-celery-worker-user-file-processing
+        component: celery
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-redis 6379; do sleep 2; done"]
+        - name: wait-for-opensearch
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-opensearch 9200; do sleep 5; done"]
+        - name: wait-for-minio
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-minio 9000; do sleep 2; done"]
+        - name: wait-for-indexing-model
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-indexing-model 9000; do sleep 5; done"]
+      containers:
+        - name: worker
+          image: onyxdotapp/onyx-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.user_file_processing
+            - worker
+            - --hostname=user-file-processing@%n
+            - -Q
+            - user_file_processing,user_file_project_sync,user_file_delete
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          startupProbe:
+            exec:
+              command: ["test", "-f", "/app/onyx/main.py"]
+            failureThreshold: 24
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-celery-worker-monitoring
+  namespace: onyx
+  labels:
+    app: onyx-celery-worker-monitoring
+    component: celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: onyx-celery-worker-monitoring
+  template:
+    metadata:
+      labels:
+        app: onyx-celery-worker-monitoring
+        component: celery
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-redis 6379; do sleep 2; done"]
+        - name: wait-for-opensearch
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-opensearch 9200; do sleep 5; done"]
+        - name: wait-for-api
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-api-server 8080; do sleep 5; done"]
+      containers:
+        - name: worker
+          image: onyxdotapp/onyx-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - onyx.background.celery.versioned_apps.monitoring
+            - worker
+            - --hostname=monitoring@%n
+            - -Q
+            - monitoring
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          startupProbe:
+            exec:
+              command: ["test", "-f", "/app/onyx/main.py"]
+            failureThreshold: 24
+            periodSeconds: 5

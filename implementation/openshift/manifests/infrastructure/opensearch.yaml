@@ -45,7 +45,7 @@ spec:
             - name: bootstrap.memory_lock
               value: "false"
             - name: OPENSEARCH_JAVA_OPTS
-              value: "-Xms512m -Xmx512m"
+              value: "-Xms1g -Xmx1g"
             - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -53,11 +53,11 @@ spec:
                   key: OPENSEARCH_ADMIN_PASSWORD
           resources:
             requests:
-              cpu: 500m
-              memory: 1Gi
+              cpu: "1"
+              memory: 4Gi
             limits:
-              cpu: "2"
-              memory: 1536Mi
+              cpu: "4"
+              memory: 6Gi
           volumeMounts:
             - name: data
               mountPath: /usr/share/opensearch/data

@@ -74,7 +74,7 @@ flowchart TB
 |---------|------|------------|
 | **onyx-opensearch** | Vector + keyword index | — |
 | **onyx-minio** | File blob store (S3-compatible) | — |
-| **onyx-background** | Celery beat + workers (indexing, delete, sync) | postgres, redis, opensearch, minio, both model servers |
+| **onyx-celery-*** (8 Deployments) | Beat + dedicated workers (indexing, delete, sync) | postgres, redis, opensearch, minio, both model servers |
 | **onyx-inference-model** | Embeddings + rerank at query time | postgres |
 | **onyx-indexing-model** | Embeddings during indexing | postgres |
 
@@ -105,22 +105,17 @@ flowchart TB
 - OpenShift 4.12+ cluster
 - `oc` CLI logged in
 - StorageClass for PVCs (default OK)
-- Cluster capacity (minimum **single-node dev**):
+- Cluster capacity for **50 concurrent users** (see `docs/SIZING-50-USERS.md`):
 
-| Component | CPU request | Memory request |
-|-----------|-------------|----------------|
-| Postgres | 250m | 512Mi |
-| Redis | 100m | 128Mi |
-| OpenSearch | 500m | 1Gi |
-| MinIO | 250m | 512Mi |
-| API | 500m | 1Gi |
-| Background | 500m | 2Gi |
-| Inference model | 1 | 3Gi |
-| Indexing model | 1 | 3Gi |
-| Web + Nginx | 300m | 768Mi |
-| **Total (approx)** | **~4 CPU** | **~12 Gi** |
+| Tier | Pods | CPU requests | Memory requests |
+|------|------|--------------|-----------------|
+| App (api, web, nginx) | 6 | ~3.4 | ~6.5 Gi |
+| Data (postgres, redis, OS, minio) | 4 | ~2.75 | ~9.5 Gi |
+| Model servers | 4 | 8 | 16 Gi |
+| **Celery workers (8 Deployments)** | **11** | **~6.25** | **~15 Gi** |
+| **Total** | **~25** | **~20 CPU** | **~47 Gi** |
 
-Production: scale memory (OpenSearch 4–8Gi, model servers with GPU nodes).
+Plan **~26 CPU / 60 Gi allocatable** with headroom for OpenShift system pods.
 
 ---
 
@@ -268,7 +263,7 @@ openshift/
     ├── configmap-env.yaml
     ├── configmap-nginx.yaml
     ├── infrastructure/                # postgres, redis, opensearch, minio
-    ├── app/                             # api, web, nginx, background, models
+    ├── app/                             # api, web, nginx, celery-workers, models
     └── routes/
         └── onyx-route.yaml
 ```

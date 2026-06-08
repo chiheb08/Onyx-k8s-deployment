@@ -20,14 +20,14 @@ opensearch:
   enabled: true
   singleNode: true
   replicas: 1
+  opensearchJavaOpts: "-Xms1g -Xmx1g"
   resources:
     requests:
-      cpu: 500m
-      memory: 1Gi
+      cpu: "1"
+      memory: 4Gi
     limits:
-      cpu: "2"
-      memory: 1536Mi
-  opensearchJavaOpts: "-Xms512m -Xmx512m"
+      cpu: "4"
+      memory: 6Gi
   extraEnvs:
     - name: bootstrap.memory_lock
       value: "false"
@@ -59,24 +59,24 @@ configMap:
 
 # Model servers — may need anyuid SCC on OpenShift
 inferenceCapability:
-  replicaCount: 1
+  replicaCount: 2
   resources:
     requests:
-      cpu: "1"
-      memory: 3Gi
+      cpu: "2"
+      memory: 4Gi
     limits:
       cpu: "4"
       memory: 8Gi
 
 indexCapability:
-  replicaCount: 1
+  replicaCount: 2
   resources:
     requests:
-      cpu: "1"
-      memory: 3Gi
+      cpu: "2"
+      memory: 4Gi
     limits:
       cpu: "4"
-      memory: 6Gi
+      memory: 8Gi
 
 # Disable bots unless configured
 slackbot:
@@ -84,22 +84,38 @@ slackbot:
 discordbot:
   enabled: false
 
-# Celery workers — all enabled for full RAG (vectorDB.enabled defaults true)
-celery_worker_user_file_processing:
+# Celery workers — sized for ~50 users (vectorDB.enabled defaults true)
+celery_beat:
   replicaCount: 1
+celery_worker_primary:
+  replicaCount: 2
+celery_worker_light:
+  replicaCount: 1
+celery_worker_heavy:
+  replicaCount: 1
+celery_worker_docprocessing:
+  replicaCount: 2
+celery_worker_docfetching:
+  replicaCount: 1
+celery_worker_user_file_processing:
+  replicaCount: 2
+celery_worker_monitoring:
+  replicaCount: 1
+celery_worker_scheduled_tasks:
+  replicaCount: 0
 
 api:
-  replicaCount: 1
+  replicaCount: 2
   resources:
     requests:
-      cpu: 500m
-      memory: 1Gi
+      cpu: "1"
+      memory: 2Gi
     limits:
       cpu: "2"
-      memory: 3Gi
+      memory: 4Gi
 
 webserver:
-  replicaCount: 1
+  replicaCount: 2
 
 postgresql:
   enabled: true

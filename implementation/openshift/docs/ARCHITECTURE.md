@@ -7,7 +7,7 @@
 | **api-server** | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — | — |
 | **webserver** | — | — | — | — | — | — | ✓ | — | — |
 | **nginx** | — | — | — | — | — | — | ✓ | ✓ | — |
-| **background** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
+| **celery workers** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
 | **inference-model** | ✓ | — | — | — | — | — | — | — | — |
 | **indexing-model** | ✓ | — | — | — | — | — | — | — | — |
 
@@ -17,7 +17,7 @@
 1. postgres, redis, opensearch, minio     (StatefulSets — parallel)
 2. inference-model, indexing-model        (after postgres)
 3. api-server                             (after all data + inference)
-4. background                             (after api + all infra)
+4. celery beat + workers                    (after api + all infra)
 5. webserver                              (after api)
 6. nginx + Route                          (after api + web)
 ```
@@ -48,7 +48,7 @@ User → Route → nginx → webserver → api-server → Postgres (llm_provider
 User → api-server → MinIO (raw file)
                  → Postgres (user_file PROCESSING)
                  → Redis (process_single_user_file)
-                 → background worker
+                 → celery-worker-user-file-processing
                       → indexing-model (embed)
                       → OpenSearch (chunks)
                       → MinIO (plaintext cache)
@@ -60,7 +60,7 @@ User → api-server → MinIO (raw file)
 ```
 User → api-server → Postgres (DELETING)
                  → Redis (delete_single_user_file on user_file_delete:1)
-                 → background → OpenSearch delete → MinIO delete → Postgres DELETE
+                 → celery-worker-user-file-processing → OpenSearch delete → MinIO delete → Postgres DELETE
 ```
 
 ## Critical production settings
