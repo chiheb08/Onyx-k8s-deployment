@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: onyx-api-server
+  namespace: onyx
+  labels:
+    app: onyx-api-server
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: api
+  selector:
+    app: onyx-api-server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-api-server
+  namespace: onyx
+  labels:
+    app: onyx-api-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: onyx-api-server
+  template:
+    metadata:
+      labels:
+        app: onyx-api-server
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-redis 6379; do sleep 2; done"]
+        - name: wait-for-opensearch
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-opensearch 9200; do sleep 5; done"]
+        - name: wait-for-minio
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-minio 9000; do sleep 2; done"]
+        - name: wait-for-inference-model
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-inference-model 9000; do sleep 5; done"]
+      containers:
+        - name: api-server
+          image: onyxdotapp/onyx-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              alembic upgrade head &&
+              echo "Starting Onyx API Server" &&
+              uvicorn onyx.main:app --host 0.0.0.0 --port 8080
+          ports:
+            - containerPort: 8080
+              name: api
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            failureThreshold: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 30
+            failureThreshold: 3

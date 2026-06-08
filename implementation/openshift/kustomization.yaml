@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: onyx
+
+commonLabels:
+  app.kubernetes.io/part-of: onyx
+  app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - manifests/namespace.yaml
+  - manifests/serviceaccount.yaml
+  - manifests/configmap-env.yaml
+  - manifests/configmap-nginx.yaml
+  - manifests/secret.yaml
+  - manifests/infrastructure/postgres.yaml
+  - manifests/infrastructure/redis.yaml
+  - manifests/infrastructure/opensearch.yaml
+  - manifests/infrastructure/minio.yaml
+  - manifests/app/inference-model.yaml
+  - manifests/app/indexing-model.yaml
+  - manifests/app/api.yaml
+  - manifests/app/webserver.yaml
+  - manifests/app/nginx.yaml
+  - manifests/app/background.yaml
+  - manifests/routes/onyx-route.yaml
+  - manifests/pdb.yaml
+
+# Pin image tags for reproducible production deploys
+images:
+  - name: onyxdotapp/onyx-backend
+    newName: onyxdotapp/onyx-backend
+    newTag: latest
+  - name: onyxdotapp/onyx-web-server
+    newName: onyxdotapp/onyx-web-server
+    newTag: latest
+  - name: onyxdotapp/onyx-model-server
+    newName: onyxdotapp/onyx-model-server
+    newTag: latest

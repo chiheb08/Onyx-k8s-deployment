@@ -228,3 +228,4 @@ Your colleague's setting of 32 is appropriate for **high-performance indexing** 
 - [MODEL-SERVERS-EXPLANATION.md](./MODEL-SERVERS-EXPLANATION.md)
 - [EMBEDDING-BATCH-SIZE-EXPLANATION.md](../troubleshooting/EMBEDDING-BATCH-SIZE-EXPLANATION.md)
 
+

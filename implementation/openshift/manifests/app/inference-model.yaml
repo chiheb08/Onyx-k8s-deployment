@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: onyx-inference-model
+  namespace: onyx
+  labels:
+    app: onyx-inference-model
+spec:
+  ports:
+    - port: 9000
+      targetPort: 9000
+      name: modelserver
+  selector:
+    app: onyx-inference-model
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-inference-model
+  namespace: onyx
+  labels:
+    app: onyx-inference-model
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: onyx-inference-model
+  template:
+    metadata:
+      labels:
+        app: onyx-inference-model
+    spec:
+      serviceAccountName: onyx
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-postgres 5432; do sleep 2; done"]
+      containers:
+        - name: inference-model
+          image: onyxdotapp/onyx-model-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9000
+              name: modelserver
+          envFrom:
+            - configMapRef:
+                name: onyx-config
+            - secretRef:
+                name: onyx-secrets
+          resources:
+            requests:
+              cpu: "1"
+              memory: 3Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10

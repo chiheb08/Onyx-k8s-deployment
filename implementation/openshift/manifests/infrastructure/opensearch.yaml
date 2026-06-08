@@ -1,0 +1,103 @@
+# OpenSearch — tuned to avoid OOM (see deployment/docker_compose/opensearch-fix-report.md)
+apiVersion: v1
+kind: Service
+metadata:
+  name: onyx-opensearch
+  namespace: onyx
+  labels:
+    app: onyx-opensearch
+spec:
+  ports:
+    - port: 9200
+      targetPort: 9200
+      name: https
+  selector:
+    app: onyx-opensearch
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: onyx-opensearch
+  namespace: onyx
+  labels:
+    app: onyx-opensearch
+spec:
+  serviceName: onyx-opensearch
+  replicas: 1
+  selector:
+    matchLabels:
+      app: onyx-opensearch
+  template:
+    metadata:
+      labels:
+        app: onyx-opensearch
+    spec:
+      containers:
+        - name: opensearch
+          image: opensearchproject/opensearch:3.6.0
+          ports:
+            - containerPort: 9200
+              name: https
+          env:
+            - name: discovery.type
+              value: single-node
+            - name: bootstrap.memory_lock
+              value: "false"
+            - name: OPENSEARCH_JAVA_OPTS
+              value: "-Xms512m -Xmx512m"
+            - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: onyx-secrets
+                  key: OPENSEARCH_ADMIN_PASSWORD
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 1536Mi
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/opensearch/data
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  curl -sk -u admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD} \
+                    https://localhost:9200/_cluster/health | grep -qE 'green|yellow'
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  curl -sk -u admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD} \
+                    https://localhost:9200/_cluster/health | grep -qE 'green|yellow'
+            periodSeconds: 15
+            timeoutSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  curl -sk -u admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD} \
+                    https://localhost:9200/_cluster/health | grep -qE 'green|yellow'
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 30Gi

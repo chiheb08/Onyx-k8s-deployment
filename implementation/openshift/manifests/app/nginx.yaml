@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: onyx-nginx
+  namespace: onyx
+  labels:
+    app: onyx-nginx
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: onyx-nginx
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onyx-nginx
+  namespace: onyx
+  labels:
+    app: onyx-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: onyx-nginx
+  template:
+    metadata:
+      labels:
+        app: onyx-nginx
+    spec:
+      initContainers:
+        - name: wait-for-api
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-api-server 8080; do sleep 3; done"]
+        - name: wait-for-web
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z onyx-webserver 3000; do sleep 3; done"]
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /nginx-health
+              port: 8080
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /nginx-health
+              port: 8080
+            periodSeconds: 30
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: onyx-nginx-conf
+            items:
+              - key: default.conf
+                path: default.conf

@@ -487,3 +487,4 @@ Your colleague's setting of 32 is a good choice for **high-performance indexing*
 
 **Questions?** Think of threads as workers in a factory - more workers = faster production (as long as you have enough materials and space)! 🏭
 
+

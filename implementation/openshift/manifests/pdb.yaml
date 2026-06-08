@@ -1,0 +1,32 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: onyx-api-pdb
+  namespace: onyx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: onyx-api-server
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: onyx-postgres-pdb
+  namespace: onyx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: onyx-postgres
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: onyx-opensearch-pdb
+  namespace: onyx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: onyx-opensearch

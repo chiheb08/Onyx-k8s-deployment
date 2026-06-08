@@ -1,0 +1,120 @@
+# Helm overlay for OpenShift — use with official chart:
+#   helm upgrade --install onyx deployment/helm/charts/onyx \
+#     -f deployment/helm/charts/onyx/values.yaml \
+#     -f deployment/openshift/values-openshift-helm.yaml \
+#     -n onyx --create-namespace
+
+global:
+  version: "latest"
+  pullPolicy: IfNotPresent
+
+# Disable ingress-nginx subchart — use OpenShift Route instead (apply route separately)
+nginx:
+  enabled: false
+
+ingress:
+  enabled: false
+
+# OpenSearch — production-safe memory (avoid OOM on smaller nodes)
+opensearch:
+  enabled: true
+  singleNode: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 1536Mi
+  opensearchJavaOpts: "-Xms512m -Xmx512m"
+  extraEnvs:
+    - name: bootstrap.memory_lock
+      value: "false"
+    - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: onyx-opensearch
+          key: opensearch_admin_password
+
+auth:
+  opensearch:
+    enabled: true
+    values:
+      opensearch_admin_username: admin
+      opensearch_admin_password: "CHANGEME_OS_Strong1!"
+  userauth:
+    enabled: true
+    values:
+      user_auth_secret: "CHANGEME_openssl_rand_hex_32"
+
+configMap:
+  AUTH_TYPE: "basic"
+  LLM_SOCKET_READ_TIMEOUT: "180"
+  LITELLM_EXTRA_BODY: '{"think": false}'
+  ENABLE_CRAFT: "false"
+  # Set after Route is created:
+  DOMAIN: "onyx.apps.example.com"
+  WEB_DOMAIN: "https://onyx.apps.example.com"
+
+# Model servers — may need anyuid SCC on OpenShift
+inferenceCapability:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "1"
+      memory: 3Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+
+indexCapability:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "1"
+      memory: 3Gi
+    limits:
+      cpu: "4"
+      memory: 6Gi
+
+# Disable bots unless configured
+slackbot:
+  enabled: false
+discordbot:
+  enabled: false
+
+# Celery workers — all enabled for full RAG (vectorDB.enabled defaults true)
+celery_worker_user_file_processing:
+  replicaCount: 1
+
+api:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
+
+webserver:
+  replicaCount: 1
+
+postgresql:
+  enabled: true
+  cluster:
+    storage:
+      size: 20Gi
+
+redis:
+  enabled: true
+
+minio:
+  enabled: true
+
+codeInterpreter:
+  enabled: false
+
+vectorDB:
+  enabled: true

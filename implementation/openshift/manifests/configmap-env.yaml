@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: onyx-config
+  namespace: onyx
+data:
+  # --- Public URLs (REQUIRED: set to your OpenShift Route host) ---
+  DOMAIN: "onyx.apps.example.com"
+  WEB_DOMAIN: "https://onyx.apps.example.com"
+
+  # --- Auth ---
+  AUTH_TYPE: "basic"
+  SESSION_EXPIRE_TIME_SECONDS: "86400"
+
+  # --- Service discovery (K8s DNS — do NOT use docker-compose hostnames) ---
+  POSTGRES_HOST: "onyx-postgres"
+  POSTGRES_DB: "postgres"
+  REDIS_HOST: "onyx-redis"
+  OPENSEARCH_HOST: "onyx-opensearch"
+  OPENSEARCH_REST_API_PORT: "9200"
+  MODEL_SERVER_HOST: "onyx-inference-model"
+  INDEXING_MODEL_SERVER_HOST: "onyx-indexing-model"
+  INTERNAL_URL: "http://onyx-api-server:8080"
+  API_SERVER_HOST: "onyx-api-server"
+  API_SERVER_PROTOCOL: "http"
+
+  # --- Vector DB / file store ---
+  DISABLE_VECTOR_DB: "false"
+  FILE_STORE_BACKEND: "s3"
+  S3_ENDPOINT_URL: "http://onyx-minio:9000"
+  S3_FILE_STORE_BUCKET_NAME: "onyx-file-store-bucket"
+  S3_FILE_STORE_PREFIX: "onyx-files"
+  ENABLE_OPENSEARCH_INDEXING_FOR_ONYX: "true"
+  ENABLE_OPENSEARCH_RETRIEVAL_FOR_ONYX: "false"
+
+  # --- LLM tuning (vLLM is configured in Admin UI as openai_compatible) ---
+  LLM_SOCKET_READ_TIMEOUT: "180"
+  LITELLM_EXTRA_BODY: '{"think": false}'
+
+  # --- Craft disabled by default ---
+  ENABLE_CRAFT: "false"
+
+  # --- Image tag parity with docker compose ---
+  IMAGE_TAG: "latest"
