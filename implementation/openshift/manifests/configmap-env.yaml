@@ -36,8 +36,15 @@ data:
   # --- Sizing profile: 50 concurrent users (see docs/SIZING-50-USERS.md) ---
 
   # --- LLM tuning (vLLM is configured in Admin UI as openai_compatible) ---
-  LLM_SOCKET_READ_TIMEOUT: "180"
+  LLM_SOCKET_READ_TIMEOUT: "300"
   LITELLM_EXTRA_BODY: '{"think": false}'
+
+  # --- Upload limits ---
+  # Keep these aligned with nginx client_max_body_size and route timeout.
+  MAX_ALLOWED_UPLOAD_SIZE_MB: "250"
+  DEFAULT_USER_FILE_MAX_UPLOAD_SIZE_MB: "250"
+  MAX_FILE_SIZE_BYTES: "2147483648"
+  MAX_DOCUMENT_CHARS: "5000000"
 
   # --- Craft disabled by default ---
   ENABLE_CRAFT: "false"
