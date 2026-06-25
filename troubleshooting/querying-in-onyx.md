@@ -4,6 +4,9 @@ This document explains how Onyx answers questions: what happens from the moment 
 
 Written for Onyx v4.x local Docker deployments, but the concepts apply generally.
 
+> **New to these concepts?** See the beginner-friendly guide with glossary and simple diagrams:  
+> [INTERNAL-SEARCH-AND-RAG-EXPLAINED-SIMPLE.md](../docs/reference/INTERNAL-SEARCH-AND-RAG-EXPLAINED-SIMPLE.md)
+
 ---
 
 ## Table of Contents
