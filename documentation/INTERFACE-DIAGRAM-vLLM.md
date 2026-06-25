@@ -1,6 +1,9 @@
-# Onyx Interface Diagram (Simplified, vLLM)
+# Onyx Interface Diagram (Simplified, vLLM + LiteLLM)
 
-The following diagram mirrors the attached example: login pane on the left, main app/chat UI, user credentials box, model storage, vLLM server, and chatbot system with request/response loops. Only key components are shown.
+The following diagram mirrors the chat.Bai V2.0 example: login pane, reverse proxy, main app/chat UI, user credentials, model storage, **LiteLLM gateway**, vLLM server, and chatbot system with request/response loops.
+
+> **chat.Bai V2.0 variant:** [INTERFACE-DIAGRAM-chatBai-V2-LITELLM.md](./INTERFACE-DIAGRAM-chatBai-V2-LITELLM.md)  
+> **German:** [INTERFACE-DIAGRAM-chatBai-V2-LITELLM.de.md](./INTERFACE-DIAGRAM-chatBai-V2-LITELLM.de.md)
 
 ```mermaid
 flowchart LR
@@ -33,6 +36,13 @@ flowchart LR
     M2[Other models]
   end
 
+  RP[Reverse-Proxy]
+
+  subgraph Gateway[LiteLLM Gateway]
+    LProxy[LiteLLM Proxy]
+    LRoute[Model routing / auth]
+  end
+
   subgraph VLLM[vLLM Server]
     RunVLLM[Run vLLM]
     ServeVLLM[Serve models]
@@ -41,7 +51,7 @@ flowchart LR
   subgraph Chatbot[Chatbot System]
     Logic[Chatbot Logic]
     Retrieval[Retrieval: embed + search]
-    Generate[Generate Response - vLLM]
+    Generate[Generate Response]
     PostProcess[Process Response]
   end
 
@@ -58,7 +68,8 @@ flowchart LR
   Agree -.-> BTN
   TOS -.-> BTN
 
-  BTN -- Login Request --> App
+  BTN -- Login Request --> RP
+  RP --> App
   BTN -. Validate via API .-> HASH
   HASH --> ENV
   HASH --> Redis
@@ -76,11 +87,15 @@ flowchart LR
   Retrieval --> Index
   Index -->|top-k context| Retrieval
   Retrieval --> Generate
-  Generate -->|LLM request| VLLM
+  Generate -->|LLM request| LProxy
+  LProxy --> LRoute
+  LRoute -->|routed request| VLLM
   VLLM --> ServeVLLM
   ServeVLLM --> RunVLLM
-  RunVLLM -->|tokens| Generate
-  Generate --> Process
+  RunVLLM -->|tokens| LRoute
+  LRoute --> LProxy
+  LProxy --> Generate
+  Generate --> PostProcess
   PostProcess -- Chat Response --> ChatBox
   ChatBox -. Display Response .- UI
 
@@ -101,7 +116,7 @@ flowchart LR
 Notes:
 - User credentials are stored in PostgreSQL; validation and hashing are done by the API (FastAPI). Sessions are maintained in Redis.
 - Retrieval uses embeddings from the Embeddings Inference Server and vector search via pgvector or Vespa.
-- Generation is performed by vLLM (replacing Ollama). The UI receives streamed tokens and renders progressively.
+- Generation goes through **LiteLLM Gateway** (OpenAI-compatible proxy), which routes to **vLLM**. The UI receives streamed tokens and renders progressively.
 - Optional: file uploads go to Private S3 and are indexed asynchronously by workers into pgvector/Vespa.
 
 ---
@@ -134,14 +149,14 @@ Notes:
    - Embeddings: call Embeddings Inference Server to embed the question.
    - Retrieval: execute vector search in `pgvector` (PostgreSQL) or `Vespa` to fetch top-k passages; apply tenant/project filters.
    - Prompt assembly: construct system/user prompts with citations and context.
-   - Generation: call `vLLM` with assembled prompt; prefer streaming.
+   - Generation: call **LiteLLM Proxy** (`/v1/chat/completions`); LiteLLM routes to `vLLM`; prefer streaming.
 3. Streaming: API streams tokens back to the browser (SSE/WebSocket), NGINX routes `/api/stream` with `Connection: upgrade` only for stream endpoints.
 4. UI renders tokens progressively; on complete, message is committed to `PostgreSQL` (chat history) along with references to sources.
 
 Failure cases:
 - Missing/invalid session → 401.
 - Retrieval empty → API still calls `vLLM` with fallback instructions (answer from general knowledge or ask for clarification), and marks low-confidence.
-- `vLLM` timeout → API returns 504/500 with a user-friendly retry message.
+- LiteLLM / `vLLM` timeout → API returns 504/500 with a user-friendly retry message.
 
 ### 5) Upload file (optional context)
 1. Browser sends `POST /api/files/upload` (multipart) with file and project.
@@ -262,7 +277,8 @@ Note: Exact paths may vary slightly per Onyx version; these are the standard sta
 | API Server | PostgreSQL | postgres (TLS if enabled) | 5432 | Users, orgs, chat history, metadata; pgvector index |
 | API Server | Vespa | HTTP (or HTTPS) | 8080 (admin 19071) | Vector/keyword retrieval when Vespa is enabled |
 | API Server | Embeddings Server | HTTP (or HTTPS) | 8000/8080 | Generate embeddings for queries/chunks |
-| API Server | vLLM | HTTP (or HTTPS) | 8000 | Text generation; supports streaming |
+| API Server | LiteLLM Proxy | HTTP (or HTTPS) | 4000 | OpenAI-compatible chat completions |
+| LiteLLM Proxy | vLLM | HTTP (or HTTPS) | 8000 | Routed text generation; streaming |
 | API Server | Private S3 | S3 (HTTPS) | 443 | Store/retrieve user file blobs |
 | Celery Workers | Redis | redis (or rediss) | 6379 (6380) | Job queue (enqueue/dequeue, statuses) |
 | Celery Workers | Embeddings Server | HTTP (or HTTPS) | 8000/8080 | Chunk embeddings during indexing |

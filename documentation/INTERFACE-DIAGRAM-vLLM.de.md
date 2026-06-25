@@ -1,6 +1,8 @@
-# Onyx Schnittstellen-Diagramm (Vereinfachte Ansicht, vLLM)
+# Onyx Schnittstellen-Diagramm (Vereinfachte Ansicht, vLLM + LiteLLM)
 
-Das folgende Diagramm spiegelt die vereinfachte Oberfläche wider: Login-Bereich, Haupt-App/Chat-UI, Benutzer-Credentials, Modell-Speicher, vLLM-Server und Chatbot-System mit Anfrage-/Antwort-Fluss. Nur wesentliche Komponenten sind dargestellt.
+Diagramm für chat.Bai V2.0: Login, Reverse-Proxy, Chat-UI, Credentials, Modell-Speicher, **LiteLLM-Gateway**, vLLM-Server und Chatbot-System.
+
+> **chat.Bai V2.0:** [INTERFACE-DIAGRAM-chatBai-V2-LITELLM.de.md](./INTERFACE-DIAGRAM-chatBai-V2-LITELLM.de.md)
 
 ```mermaid
 flowchart LR
@@ -33,6 +35,13 @@ flowchart LR
     M2[Weitere Modelle]
   end
 
+  RP[Reverse-Proxy]
+
+  subgraph Gateway[LiteLLM Gateway]
+    LProxy[LiteLLM Proxy]
+    LRoute[Modell-Routing / Auth]
+  end
+
   subgraph VLLM[vLLM Server]
     RunVLLM[vLLM ausführen]
     ServeVLLM[Modelle bereitstellen]
@@ -41,7 +50,7 @@ flowchart LR
   subgraph Chatbot[Chatbot-System]
     Logic[Chatbot-Logik]
     Retrieval[Retrieval: Embedding + Suche]
-    Generate[Antwort generieren - vLLM]
+    Generate[Antwort generieren]
     PostProcess[Antwort aufbereiten]
   end
 
@@ -58,7 +67,8 @@ flowchart LR
   Agree -.-> BTN
   TOS -.-> BTN
 
-  BTN -- Login-Anfrage --> App
+  BTN -- Login-Anfrage --> RP
+  RP --> App
   BTN -. Validierung via API .-> HASH
   HASH --> ENV
   HASH --> Redis
@@ -76,10 +86,14 @@ flowchart LR
   Retrieval --> Index
   Index -->|Top-k Kontext| Retrieval
   Retrieval --> Generate
-  Generate -->|LLM-Request| VLLM
+  Generate -->|LLM-Anfrage| LProxy
+  LProxy --> LRoute
+  LRoute -->|weitergeleitet| VLLM
   VLLM --> ServeVLLM
   ServeVLLM --> RunVLLM
-  RunVLLM -->|Tokens| Generate
+  RunVLLM -->|Tokens| LRoute
+  LRoute --> LProxy
+  LProxy --> Generate
   Generate --> PostProcess
   PostProcess -- Chat-Antwort --> ChatBox
   ChatBox -. Anzeige .- UI
@@ -127,7 +141,7 @@ flowchart LR
    - Embeddings: Anfrage an Embeddings-Server.
    - Retrieval: Vektorsuche in `pgvector` oder `Vespa` mit Mandantenfiltern.
    - Prompt-Aufbau: Kontexte + Zitate.
-   - Generation: Anfrage an `vLLM` (Streaming bevorzugt).
+   - Generation: Anfrage an **LiteLLM Proxy**; LiteLLM leitet an `vLLM` weiter (Streaming bevorzugt).
 3. Streaming: API streamt Tokens (SSE/WebSocket). NGINX setzt `Connection: upgrade` nur für Stream-Endpunkt.
 4. UI rendert fortlaufend; Abschluss wird in `PostgreSQL` gespeichert (inkl. Quellen).
 
@@ -215,7 +229,8 @@ Hinweis für restriktive Umgebungen:
 | API | PostgreSQL | postgres (TLS optional) | 5432 | Benutzer, Metadaten, Chat, pgvector |
 | API | Vespa | HTTP/HTTPS | 8080 (Admin 19071) | Retrieval |
 | API | Embeddings-Server | HTTP/HTTPS | 8000/8080 | Embeddings für Query/Chunks |
-| API | vLLM | HTTP/HTTPS | 8000 | Textgenerierung (Streaming) |
+| API | LiteLLM Proxy | HTTP/HTTPS | 4000 | OpenAI-kompatible Chat-Completions |
+| LiteLLM Proxy | vLLM | HTTP/HTTPS | 8000 | Weitergeleitete Textgenerierung |
 | API | Private S3 | S3 HTTPS | 443 | Dateiablage |
 | Worker | Redis | redis/rediss | 6379 (6380) | Job-Queue |
 | Worker | Embeddings-Server | HTTP/HTTPS | 8000/8080 | Chunk-Embeddings |
