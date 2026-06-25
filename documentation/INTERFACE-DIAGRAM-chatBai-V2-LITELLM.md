@@ -244,6 +244,7 @@ Onyx API uses OpenAI-compatible `chat/completions` against this URL instead of c
 
 ## Related docs
 
+- [ARCHITECTURE-DIAGRAM-OPENSHIFT-CICD-LITELLM.md](./ARCHITECTURE-DIAGRAM-OPENSHIFT-CICD-LITELLM.md) — CI/CD diagram (GitHub, Artifactory, ArgoCD, LiteLLM)
 - [INTERFACE-DIAGRAM-vLLM.md](./INTERFACE-DIAGRAM-vLLM.md) — original diagram (pre-LiteLLM)
 - [litellm-integration/LITELLM-DEPLOYMENT-GUIDE.md](../litellm-integration/LITELLM-DEPLOYMENT-GUIDE.md) — deploy LiteLLM on OpenShift
 - [litellm-integration/ONYX-LITELLM-INTEGRATION.md](../litellm-integration/ONYX-LITELLM-INTEGRATION.md) — wire Onyx to LiteLLM
