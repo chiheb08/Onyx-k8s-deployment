@@ -158,10 +158,12 @@ LLM:  wait for full answer    Stream: tokens arrive over time
 
 | File | Purpose |
 |------|---------|
-| `README.md` | This guide |
+| `README.md` | Sync vs async intro |
+| [PYTHON-ASYNCIO-EXPLAINED.md](./PYTHON-ASYNCIO-EXPLAINED.md) | **Detailed asyncio guide** |
 | `sync_demo.py` | Blocking demo |
 | `async_demo.py` | Concurrent demo |
 | `compare_both.py` | Run both and print timings |
+| `asyncio_basics_demo.py` | 6 asyncio lessons (hands-on) |
 
 ---
 
