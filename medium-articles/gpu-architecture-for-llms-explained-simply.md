@@ -25,6 +25,86 @@ So yes, two GPUs with enough VRAM to hold the same model can still differ greatl
 
 ---
 
+## Before we start: model basics in very simple words
+
+If you are new to LLMs, this section is the foundation.
+
+### What is a model (in one sentence)?
+
+A model is a very large math function that converts input text into next-token predictions.
+
+It learns this behavior during training by adjusting many internal numbers.
+
+### What are \"parameters\"?
+
+Parameters are those internal numbers.
+
+Think of parameters like millions or billions of tiny knobs in a giant sound mixer:
+
+- each knob affects output a little bit
+- together they define the model's behavior
+
+When we say:
+
+- **7B model** → about 7 billion parameters
+- **13B model** → about 13 billion parameters
+- **70B model** → about 70 billion parameters
+
+more parameters usually mean more expressive power, but also more memory and compute cost.
+
+### What is quantization?
+
+Quantization is a compression technique for those parameter values.
+
+Instead of storing each value with high precision (many bits), we store it with lower precision (fewer bits).
+
+This makes the model smaller and cheaper to run.
+
+Simple view:
+
+- higher precision = clearer photo, larger file
+- lower precision = slightly less detail, much smaller file
+
+For example, **Q4** roughly means 4-bit style quantized representation (exact storage varies by implementation).
+
+### How is model size calculated?
+
+At planning level, use this simple formula:
+
+```text
+Model weight size (bytes) ≈ Number of parameters × Bytes per parameter
+```
+
+Examples:
+
+1. If a 13B model were stored at 2 bytes/param:
+
+```text
+13e9 × 2 = 26e9 bytes ≈ 26 GB
+```
+
+2. If the same 13B model is Q4-like at ~0.7 bytes/param:
+
+```text
+13e9 × 0.7 ≈ 9.1e9 bytes ≈ 9.1 GB
+```
+
+So quantization can dramatically reduce required VRAM for weights.
+
+### Important beginner note
+
+\"Model size\" usually refers to **weights only**.
+
+But runtime memory needs are bigger because you also need:
+
+- KV cache
+- temporary activations/buffers
+- framework overhead
+
+That is why a model that \"fits on paper\" can still fail in production if context length and concurrency are high.
+
+---
+
 ## 1) Build a mental model first
 
 Imagine an AI factory:
