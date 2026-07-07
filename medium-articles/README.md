@@ -5,6 +5,7 @@ Draft blog posts for [Medium](https://medium.com) and similar platforms. Content
 | Article | File | Topic |
 |---------|------|--------|
 | What production teaches you about deploying AI platforms | [what-production-teaches-you-about-deploying-ai-platforms.md](./what-production-teaches-you-about-deploying-ai-platforms.md) | Common deployment pitfalls, junior mistakes, analogies |
+| GPU architecture for LLMs explained simply | [gpu-architecture-for-llms-explained-simply.md](./gpu-architecture-for-llms-explained-simply.md) | VRAM, bandwidth, KV cache, batching, and easy math |
 
 ## Publishing on Medium
 
