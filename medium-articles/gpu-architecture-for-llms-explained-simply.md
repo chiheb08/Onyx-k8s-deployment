@@ -507,6 +507,261 @@ Same model. Very different user experience.
 
 ---
 
+## Visual Summary: All Concepts in Simple Diagrams
+
+Use this section as a one-page recap. Each diagram maps to one idea from the article.
+
+---
+
+### Diagram 1 — What is inside a model?
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                     LARGE LANGUAGE MODEL                    │
+│                                                             │
+│   Input text:  "What is machine learning?"                  │
+│        │                                                    │
+│        ▼                                                    │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │  PARAMETERS (billions of tiny numbers / "knobs")   │   │
+│   │  • learned during training                         │   │
+│   │  • define how model behaves                        │   │
+│   └─────────────────────────────────────────────────────┘   │
+│        │                                                    │
+│        ▼                                                    │
+│   Output: next token prediction → "Machine" → "learning"…   │
+└─────────────────────────────────────────────────────────────┘
+
+7B model  ≈ 7 billion parameters
+13B model ≈ 13 billion parameters
+70B model ≈ 70 billion parameters
+```
+
+**Remember:** More parameters = usually smarter, but heavier (more VRAM + compute).
+
+---
+
+### Diagram 2 — Quantization (smaller storage, same idea)
+
+```text
+FULL PRECISION (e.g. FP16)          QUANTIZED (e.g. Q4)
+┌──────────────────────┐            ┌──────────────────────┐
+│ Each number: 16 bits │            │ Each number: ~4 bits │
+│ High detail          │   ───►     │ Smaller file         │
+│ Bigger file          │  compress  │ Slightly less detail │
+└──────────────────────┘            └──────────────────────┘
+
+13B model example:
+  FP16-ish (~2 bytes/param)  →  ~26 GB weights
+  Q4-ish   (~0.7 bytes/param) →  ~9 GB weights
+```
+
+**Remember:** Quantization helps **fit** the model. It does not remove all memory **traffic** at inference time.
+
+---
+
+### Diagram 3 — VRAM vs bandwidth vs compute
+
+```text
+                    THE AI FACTORY
+
+   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+   │    VRAM     │     │  BANDWIDTH  │     │   COMPUTE   │
+   │  (warehouse)│◄───►│  (road width)│◄───►│  (workers)  │
+   │             │     │             │     │             │
+   │ How MUCH    │     │ How FAST    │     │ How FAST    │
+   │ can we store│     │ data moves  │     │ math runs   │
+   └─────────────┘     └─────────────┘     └─────────────┘
+
+Question 1: Does the model + KV cache FIT?     → VRAM
+Question 2: Can we MOVE data fast per token?   → Bandwidth (decode)
+Question 3: Can we DO math fast on big prompts? → Compute (prefill)
+```
+
+**Kitchen analogy:**
+
+| Concept | Analogy |
+|---------|---------|
+| VRAM | Pantry size |
+| Bandwidth | Width of counter where ingredients slide |
+| Compute | Number of chefs |
+
+---
+
+### Diagram 4 — What sits in VRAM at runtime?
+
+```text
+┌──────────────────────────────── GPU VRAM ────────────────────────────────┐
+│                                                                          │
+│  ┌────────────────────────┐  ┌──────────────────┐  ┌────────────────┐ │
+│  │ MODEL WEIGHTS          │  │ KV CACHE           │  │ RUNTIME        │ │
+│  │ (static, big)          │  │ (grows with        │  │ (buffers,      │ │
+│  │                        │  │  context + users)  │  │  framework)    │ │
+│  └────────────────────────┘  └──────────────────┘  └────────────────┘ │
+│                                                                          │
+│  Total ≈ Weights + KV Cache + Overhead                                   │
+│                                                                          │
+│  "Fits on paper" ≠ "stable under 10 concurrent long chats"               │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Diagram 5 — Prefill vs decode (two phases)
+
+```text
+USER SENDS LONG PROMPT                    MODEL GENERATES ANSWER
+        │                                          │
+        ▼                                          ▼
+   ┌─────────┐                              ┌─────────┐
+   │ PREFILL │                              │ DECODE  │
+   │         │                              │         │
+   │ Process │                              │ 1 token │
+   │ ALL     │                              │ at a    │
+   │ prompt  │                              │ a time  │
+   │ tokens  │                              │         │
+   │ at once │                              │ repeat… │
+   └─────────┘                              └─────────┘
+        │                                          │
+   Often COMPUTE-heavy                      Often BANDWIDTH-heavy
+   (parallel math)                          (read weights every token)
+
+Users feel DECODE speed in chat ("how fast tokens appear").
+```
+
+---
+
+### Diagram 6 — Why bandwidth dominates decode
+
+```text
+Per generated token (rough planning):
+
+   read ≈ 2 × model weight size  (effective memory movement)
+
+Example: 13B Q4 weights ~9 GB  →  ~18 GB read per token
+
+Time floor ≈ (GB per token / bandwidth) × 1000 ms
+
+   960 GB/s  →  ~19 ms/token
+   504 GB/s  →  ~36 ms/token
+   256 GB/s  →  ~70 ms/token
+
+Same model fits on all three GPUs.
+Different roads → ~2.8× speed spread from bandwidth alone.
+```
+
+```text
+     GPU A (wide road)          GPU B (narrow road)
+   ████ token every ~19ms     ████ token every ~70ms
+```
+
+---
+
+### Diagram 7 — KV cache grows with context and users
+
+```text
+One short chat:
+  KV cache:  ▓▓░░░░░░░░  (small)
+
+One long document + long thread:
+  KV cache:  ▓▓▓▓▓▓▓▓░░  (bigger)
+
+Many users at once:
+  KV cache:  ▓▓▓▓▓▓▓▓▓▓  (can OOM even if weights "fit")
+
+More context length + more concurrent chats = more VRAM pressure
+```
+
+---
+
+### Diagram 8 — Throughput vs latency vs concurrency
+
+```text
+                    THREE DIFFERENT GOALS
+
+   LATENCY                    THROUGHPUT                 CONCURRENCY
+   (one user waits)           (total tokens/sec)         (how many users)
+
+   "How fast is MY answer?"   "How much can the          "How many active
+                               cluster serve total?"       chats at once?"
+
+        │                           │                          │
+        └──────── trade-offs ───────┴──────────────────────────┘
+
+   Bigger batches → higher throughput, sometimes worse first-token latency
+```
+
+---
+
+### Diagram 9 — End-to-end LLM serving stack
+
+```text
+┌──────────┐    ┌──────────┐    ┌──────────────┐    ┌─────────────┐    ┌──────────┐
+│  Client  │───►│ API /    │───►│ LLM Gateway  │───►│ Inference   │───►│ GPU pool │
+│  (chat)  │    │ Ingress  │    │ (routing,    │    │ engine      │    │          │
+└──────────┘    └──────────┘    │  retries)    │    │ (batching)  │    └──────────┘
+                                └──────────────┘    └─────────────┘
+                                       │
+                    Bottleneck can be HERE, not only on GPU
+                    (timeouts, queues, scheduling)
+```
+
+---
+
+### Diagram 10 — Master cheat sheet (print this)
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│                    LLM + GPU — ONE-PAGE SUMMARY                        │
+├────────────────────────────────────────────────────────────────────────┤
+│ PARAMETERS     │ Internal numbers that define the model               │
+│ QUANTIZATION   │ Store numbers with fewer bits → smaller weights      │
+│ MODEL SIZE     │ params × bytes_per_param (weights only)              │
+│ VRAM           │ Can it FIT? (weights + KV cache + overhead)          │
+│ BANDWIDTH      │ How fast per TOKEN in decode? (often the limit)      │
+│ COMPUTE        │ How fast on long PROMPT in prefill?                  │
+│ PREFILL        │ Eat whole prompt — parallel, compute-heavy           │
+│ DECODE         │ Generate token-by-token — often memory-bound         │
+│ KV CACHE       │ Memory of past tokens — grows with context + users   │
+│ TTFT           │ Time to first token — user-perceived "snappiness"    │
+├────────────────────────────────────────────────────────────────────────┤
+│ KEY FORMULAS                                                           │
+│   weight_GB ≈ N × bytes_per_param / 1e9                                │
+│   token_ms ≈ (GB_per_token / GBps) × 1000                              │
+│   total_VRAM ≈ weights + KV_cache + overhead                           │
+├────────────────────────────────────────────────────────────────────────┤
+│ BEFORE YOU SHIP                                                        │
+│   □ Model + KV fits at target context & concurrency                    │
+│   □ Measure prefill AND decode separately                              │
+│   □ Align timeouts (client → gateway → inference)                      │
+│   □ Load-test mixed traffic, not one short prompt                      │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Diagram 11 — Decision flow (which bottleneck am I hitting?)
+
+```text
+                         START: "LLM feels slow"
+                                    │
+                    ┌───────────────┼───────────────┐
+                    ▼               ▼               ▼
+              OOM / restarts   Queue growing    Tokens slow but
+              on GPU?          on gateway?      GPU not full?
+                    │               │               │
+                    ▼               ▼               ▼
+              VRAM + KV        API/gateway      Bandwidth or
+              cache issue      scheduling       decode bound
+                    │               │               │
+                    ▼               ▼               ▼
+              Reduce context   Scale routing/    Faster GPU memory
+              or concurrency  batch policy      or smaller model
+              or quantize     or timeouts       or better quantization
+```
+
+---
+
 ## Closing
 
 LLM infrastructure feels mysterious until you reduce it to movement, math, and queues.
