@@ -153,13 +153,94 @@ If missing, your config change was not applied.
 
 ---
 
-## Your case (from your screenshots)
+## Your case — snapshot 1 (earlier)
 
 - API rows: **320 / 108 / 40**
 - `active`: **0**
 - long idle age (~47 min)
 
-Verdict: **unhealthy** (too many idle connections held open).
+Verdict: **unhealthy** (one pod hoarding, very uneven).
+
+---
+
+## Your case — snapshot 2 (latest screenshots)
+
+### Numbers you captured
+
+```text
+Global:  used = 393,  max = 500   →  79% full  (WARNING)
+
+Per IP:
+  10.130.65.110   total=120   active=0   ← API pod
+  10.130.34.105   total=120   active=0   ← API pod
+  10.129.33.11    total=120   active=0   ← API pod
+  (smaller rows)  8, 8, 4, 4, 2, 1...   ← workers / other
+```
+
+Detail on one API IP (`10.130.65.110`):
+
+- all rows: `state=idle`, `wait_event=ClientRead`
+- last command: mostly `ROLLBACK` (some `COMMIT`)
+- one connection idle for **17+ hours**
+
+### What changed vs snapshot 1
+
+| | Snapshot 1 | Snapshot 2 |
+|---|------------|------------|
+| API totals | 320 / 108 / 40 (uneven) | **120 / 120 / 120** (even) |
+| Global used | likely higher | **393/500** |
+| Load balance | one hot pod | **balanced across 3** |
+
+So load is now spread evenly — **better** — but each API pod still holds **120** connections.
+
+### Simple math
+
+```text
+3 API pods × 120 = 360 connections
++ workers (~33)      = ~393 total   ✓ matches your screenshot
+```
+
+Postgres only has **500** slots → only **~107 left** for spikes. That is why users still feel pain.
+
+### Is 120 per pod healthy?
+
+**No.** For a capped pool of 15+5, you want ~20 per pod, not 120.
+
+120 likely means:
+
+- pool env vars still **not set low enough**, or
+- **multiple pools per API process** (write + read-only + …), each growing to its max, or
+- app default pools (e.g. 40+10) × several engines ≈ 120
+
+### Why `active=0` but still bad?
+
+No SQL running at that instant — but **393 doors are still open** in the hotel. New users/workers may get “no room left.”
+
+### Is `ROLLBACK` the smoking gun?
+
+**Usually no.** `ROLLBACK`/`COMMIT` as last command on idle pooled connections is common.
+
+**But:** one connection **idle 17 hours** is suspicious → stale/leaked connection that should have been closed.
+
+### Verdict snapshot 2
+
+| Check | Result |
+|-------|--------|
+| Global 393/500 (79%) | **Warning** — fix before 85%+ |
+| 120 per API pod | **Unhealthy** — way above target ~20 |
+| 3 pods balanced | **Good sign** (routing improved) |
+| active=0 | Not a “quiet healthy system” |
+| 17h idle connection | **Leak/stale** signal |
+
+**One line:** Better balanced than before, still **unhealthy** — API tier eats **72%** of Postgres connections (360/500) while mostly idle.
+
+### What to do next (exact)
+
+1. On API pod: `printenv | grep POSTGRES_API_SERVER_POOL` — confirm values
+2. If missing or high → set **15 / 5** (and read-only **8 / 2**)
+3. Rolling restart API pods
+4. Re-run Step 1 + Step 2 — target: **used < 100**, each API **≤ 25**
+5. If still ~120 per pod after restart → treat as **app-level pool/leak** (vendor ticket)
 
 ---
 
