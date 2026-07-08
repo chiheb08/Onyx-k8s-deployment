@@ -6,6 +6,7 @@ Draft blog posts for [Medium](https://medium.com) and similar platforms. Content
 |---------|------|--------|
 | What production teaches you about deploying AI platforms | [what-production-teaches-you-about-deploying-ai-platforms.md](./what-production-teaches-you-about-deploying-ai-platforms.md) | Common deployment pitfalls, junior mistakes, analogies |
 | GPU architecture for LLMs explained simply | [gpu-architecture-for-llms-explained-simply.md](./gpu-architecture-for-llms-explained-simply.md) | VRAM, bandwidth, KV cache, batching, and easy math |
+| Why your app feels slow while Postgres shows 0 active queries | [why-your-app-feels-slow-while-postgres-shows-no-active-queries.md](./why-your-app-feels-slow-while-postgres-shows-no-active-queries.md) | Connection pool incident deep dive, idle overload, remediation |
 
 ## Publishing on Medium
 
