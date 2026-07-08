@@ -6,6 +6,10 @@ Use this to see **how many DB connections each client (pod/IP) is using** after 
 
 **Load test playbook:** [5-USER-CONCURRENT-UPLOAD-TEST-SCENARIO.md](./5-USER-CONCURRENT-UPLOAD-TEST-SCENARIO.md)
 
+**Healthy vs unhealthy deep dive:** [POSTGRES-CONNECTION-POOL-HEALTH-DEEP-DIVE.md](./POSTGRES-CONNECTION-POOL-HEALTH-DEEP-DIVE.md)
+
+**Fix runbook:** [../reference/POSTGRES-POOL-REMEDIATION-RUNBOOK.md](../reference/POSTGRES-POOL-REMEDIATION-RUNBOOK.md)
+
 ---
 
 ## Connect

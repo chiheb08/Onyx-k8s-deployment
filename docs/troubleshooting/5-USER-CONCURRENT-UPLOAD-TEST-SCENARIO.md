@@ -5,7 +5,8 @@
 **Duration:** ~30 minutes  
 **Style:** In-pod terminals (no `kubectl` required on laptop if you use OpenShift UI pod shells)
 
-**Related:** [POSTGRES-CONNECTIONS-PER-INSTANCE.md](./POSTGRES-CONNECTIONS-PER-INSTANCE.md)
+**Related:** [POSTGRES-CONNECTIONS-PER-INSTANCE.md](./POSTGRES-CONNECTIONS-PER-INSTANCE.md)  
+**Health deep dive:** [POSTGRES-CONNECTION-POOL-HEALTH-DEEP-DIVE.md](./POSTGRES-CONNECTION-POOL-HEALTH-DEEP-DIVE.md)
 
 ---
 
